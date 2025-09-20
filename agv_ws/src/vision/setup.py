@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'image_publisher = vision.image_publisher:main',
+            'image_subscriber = vision.image_subscriber:main',
         ],
     },
 )
