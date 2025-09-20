@@ -14,9 +14,9 @@ class ArucoDetector(Node):
         # self.declare_parameter('marker_size', 4.0)
         self.declare_parameter('marker_size', 8.0)
 
-        self.sub_ = self.create_subscription(Image, '/image/raw', self.msgCallback, 10)
+        self.sub_ = self.create_subscription(Image, '/camera/image_raw', self.msgCallback, 10)
         self.pub_ = self.create_publisher(PoseArray, 'aruco_pose', 10)
-        self.image_pub_ = self.create_publisher(Image, '/image/processed', 10)
+        self.image_pub_ = self.create_publisher(Image, '/camera/image_marked', 10)
 
         self.bridge = CvBridge()
 

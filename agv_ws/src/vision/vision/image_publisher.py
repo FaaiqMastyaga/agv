@@ -16,7 +16,7 @@ class ImagePublisher(Node):
         video_width = self.get_parameter('video_width').get_parameter_value().integer_value
         video_height = self.get_parameter('video_height').get_parameter_value().integer_value
 
-        self.pub_ = self.create_publisher(Image, '/image/raw', 10)
+        self.pub_ = self.create_publisher(Image, '/camera/image_raw', 10)
         timer_period = 0.1
         self.timer_ = self.create_timer(timer_period, self.timerCallback)
     

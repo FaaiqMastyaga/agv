@@ -8,7 +8,7 @@ class ImageSubscriber(Node):
     def __init__(self):
         super().__init__('image_subscriber')
 
-        self.sub_ = self.create_subscription(Image, '/image/raw', self.msgCallback, 10)
+        self.sub_ = self.create_subscription(Image, '/camera/image_raw', self.msgCallback, 10)
         
         self.bridge = CvBridge()
 
