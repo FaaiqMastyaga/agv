@@ -109,10 +109,13 @@ class ArucoDetector(Node):
 
                 aruco_marker_array.markers.append(aruco_marker)
 
+                top_left_corner = tuple(marker_corner[0][0].astype(int))
+
                 # Draw bounding box and info (for visualization)
                 cv2.aruco.drawDetectedMarkers(img, corners)
                 cv2.drawFrameAxes(img, self.camera_matrix, self.distortion_coeffs, rvec, tvec, 3.0)
-        
+                cv2.putText(img, f"id: {marker_id}", (top_left_corner[0], top_left_corner[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
         # Publish results
         self.aruco_pose_pub_.publish(aruco_marker_array)
         img_msg = self.bridge.cv2_to_imgmsg(img, 'bgr8')
