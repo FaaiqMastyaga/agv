@@ -1,0 +1,30 @@
+image_publisher:
+  ros__parameters:
+    camera_id: 2
+    image_width: 800 # px
+    image_height: 448 # px
+    camera_name: "Logitech C920"
+    camera_model: "plumb_bob"
+    
+    camera_matrix:
+      data: [585.72338132, 0.0, 409.22087225,
+             0.0, 588.43905586, 231.17154493,
+             0.0, 0.0, 1.0]
+    
+    distortion_coefficients:
+      data: [-0.01066598, -0.05213597, -0.00347335, -0.00135213, 0.04338231]
+    
+    rectification_matrix:
+      data: [1.0, 0.0, 0.0,
+             0.0, 1.0, 0.0,
+             0.0, 0.0, 1.0]
+    
+    projection_matrix:
+      data: [585.72338132, 0.0, 409.22087225, 0.0,
+             0.0, 588.43905586, 231.17154493, 0.0,
+             0.0, 0.0, 1.0, 0.0]
+
+aruco_detector:
+  ros__parameters:
+    aruco_dict: "DICT_4X4_50"
+    marker_size: 8.0 # cm
