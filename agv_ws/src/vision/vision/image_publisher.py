@@ -20,7 +20,7 @@ class ImagePublisher(Node):
         timer_period = 0.1
         self.timer_ = self.create_timer(timer_period, self.timerCallback)
     
-        self.cap = cv2.VideoCapture(3)
+        self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, video_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, video_height)
 
