@@ -13,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][y]'))),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,9 +28,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'image_publisher = vision.image_publisher:main',
-            'image_subscriber = vision.image_subscriber:main',
-            'aruco_detector = vision.aruco_detector:main',
+            'image_publisher_node = vision.image_publisher:main',
+            'image_subscriber_node = vision.image_subscriber:main',
+            'aruco_detector_node = vision.aruco_detector:main',
         ],
     },
 )
