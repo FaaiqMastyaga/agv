@@ -117,7 +117,7 @@ class ArucoDetector(Node):
         self.aruco_pose_pub_.publish(aruco_marker_array)
         img_msg = self.bridge.cv2_to_imgmsg(img, 'bgr8')
         img_msg.header = image_msg.header
-        self.image_pub_.publish(img_msg)
+        self.image_marked_pub_.publish(img_msg)
 
 def main(args=None):
     rclpy.init(args=args)
