@@ -1,22 +1,30 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import Pose
+from aruco_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
+import tf_transformations
 
 class ArucoDetector(Node):
     def __init__(self):
         super().__init__('aruco_detector')
 
+        self.declare_parameter('video_width', 800)
+        self.declare_parameter('video_height', 448)
+
+        self.video_width = self.get_parameter('video_width').get_parameter_value().integer_value
+        self.video_height = self.get_parameter('video_height').get_parameter_value().integer_value
+
         self.declare_parameter('aruco_dict', "DICT_4X4_50")
         # self.declare_parameter('marker_size', 4.0)
         self.declare_parameter('marker_size', 8.0)
 
-        self.sub_ = self.create_subscription(Image, '/image/raw', self.msgCallback, 10)
-        self.pub_ = self.create_publisher(PoseArray, 'aruco_pose', 10)
-        self.image_pub_ = self.create_publisher(Image, '/image/processed', 10)
+        self.sub_ = self.create_subscription(Image, '/camera/image_raw', self.msgCallback, 10)
+        self.aruco_pose_pub_ = self.create_publisher(MarkerArray, '/aruco/pose', 10)
+        self.image_pub_ = self.create_publisher(Image, '/camera/image_marked', 10)
 
         self.bridge = CvBridge()
 
@@ -60,6 +68,9 @@ class ArucoDetector(Node):
     def msgCallback(self, msg):
         img = self.bridge.imgmsg_to_cv2(msg)
 
+        aruco_marker_array = MarkerArray()
+        aruco_marker_array.header.frame_id = 'ArUco Pose'
+        
         (corners, ids, rejected) = cv2.aruco.detectMarkers(img, self.aruco_dict, parameters=self.aruco_parameters)
 
         if len(corners) > 0:
@@ -68,7 +79,37 @@ class ArucoDetector(Node):
             for (marker_corner, marker_id) in zip(corners, ids):
                 # Get marker pose (relative to camera)
                 rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(marker_corner, self.marker_size, self.camera_matrix, self.dist_coeffs)
-                distance = np.linalg.norm(tvec[0][0])
+                rvec, tvec = rvec[0][0], tvec[0][0]
+
+                # Extract information from marker pose
+                position = tvec
+
+                rotation_matrix = np.eye(4) 
+                rotation_matrix[:3, :3], _ = cv2.Rodrigues(rvec)
+                quaternion = tf_transformations.quaternion_from_matrix(rotation_matrix)
+                
+                euler = tf_transformations.euler_from_quaternion(quaternion, 'szxy')
+                euler = [np.rad2deg(angle) for angle in euler] 
+                
+                distance = np.linalg.norm(position)
+
+                # Build message
+                pose = Pose()
+                pose.position.x = position[0]
+                pose.position.y = position[1]
+                pose.position.z = position[2]
+                pose.orientation.x = quaternion[0]
+                pose.orientation.y = quaternion[1]
+                pose.orientation.z = quaternion[2]
+                pose.orientation.w = quaternion[3]
+
+                aruco_marker = Marker()
+                aruco_marker.id = int(marker_id)
+                aruco_marker.pose.pose = pose
+                aruco_marker.pose.covariance = (0.1 * np.eye(6)).flatten().tolist()
+                aruco_marker.confidence = 0.1
+
+                aruco_marker_array.markers.append(aruco_marker)
 
                 # Extract the marker corners
                 corners = marker_corner.reshape((4,2))
@@ -89,22 +130,31 @@ class ArucoDetector(Node):
                 # Calculate and draw the center of the ArUco marker
                 center_x = int((top_left[0] + bottom_right[0]) / 2.0)
                 center_y = int((top_left[1] + bottom_right[1]) / 2.0)
-                cv2.circle(img, (center_x, center_y), 4, (0, 0, 255), -1)
+                center = (center_x, center_y)
+                cv2.circle(img, center, 4, (0, 0, 255), -1)
+
+                # Calculate and draw arrow from center of camera to center of ArUco marker
+                center_cam_x = int(self.video_width / 2)
+                center_cam_y = int(self.video_height / 2)
+                center_cam = (center_cam_x, center_cam_y)
+                cv2.arrowedLine(img, center_cam, center, (255, 255, 255), 2)
+                cv2.line(img, center_cam, (center_x, center_cam_y), (0, 0, 255), 2)
+                cv2.line(img, center_cam, (center_cam_x, center_y), (0, 255, 0), 2)
 
                 # Draw the ArUco marker ID on the video frame
                 # The ID is located at the top_left of the ArUco marker
                 cv2.putText(img, str(marker_id), (top_left[0], top_right[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-                # Print ID and coordinate
-                # self.get_logger().info(f'ID: {marker_id}, coordinate: {corners}')
-
                 # Print ID and distance
-                self.get_logger().info(f'ID: {marker_id}\n\trvec: {rvec}\n\ttvec: {tvec}\n\tdistance: {distance}')
+                self.get_logger().info(f'ID: {marker_id}\n\tposition: {position}\n\teuler: {euler}\n\tdistance: {distance}')
+        
+        cv2.imshow('Video frame', img)
+        cv2.waitKey(1)
         
         img_msg = self.bridge.cv2_to_imgmsg(img, 'bgr8')
         self.image_pub_.publish(img_msg)
-        cv2.imshow('Video frame', img)
-        cv2.waitKey(1)
+
+        self.aruco_pose_pub_.publish(aruco_marker_array)
 
 def main(args=None):
     rclpy.init(args=args)
