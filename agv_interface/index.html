@@ -2,17 +2,17 @@
 <html>
 <head>
     <title>ROS Robot Control</title>
-    <script src="https://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
-    <script src="js/main.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/roslibjs/1.1.0/roslib.min.js"></script>
     <style>
         #video_stream {
             border: 2px solid black;
         }
-    </style>
+        </style>
 </head>
 <body>
     <h1>Robot Control Interface</h1>
-
+    <p id="status">Connecting...</p>
     <img id="video_stream" src="http://127.0.0.1:8080/stream?topic=/camera/image_marked" />
-</body>
-</html>
+    <div id="aruco_data"></div>
+    <script src="js/main.js"></script>
+</body></html>
