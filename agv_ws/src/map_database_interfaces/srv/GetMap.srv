@@ -1,0 +1,7 @@
+# Request
+# Empty request - it just asked for the current cached map
+---
+# Response
+bool success
+string message
+aruco_msgs/MarkerArray map_data

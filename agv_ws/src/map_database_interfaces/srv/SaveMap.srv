@@ -1,0 +1,8 @@
+# Request
+string map_name
+aruco_msgs/MarkerArray map_data
+---
+# Response
+bool success
+string message
+int32 new_map_id
