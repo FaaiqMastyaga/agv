@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][y]'))),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'map_database_interfaces'],
     zip_safe=True,
     maintainer='faaiq',
     maintainer_email='faaiqmastyaga@gmail.com',
