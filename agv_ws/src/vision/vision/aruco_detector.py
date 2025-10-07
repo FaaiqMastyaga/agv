@@ -1,8 +1,11 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose
 from aruco_msgs.msg import Marker, MarkerArray
+from map_database_interfaces.srv import LoadMap, GetMap
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -33,25 +36,19 @@ class ArucoDetector(Node):
     def __init__(self):
         super().__init__('aruco_detector')
 
-        self.declare_parameters(
-            namespace='',
-            parameters=[
-                ('aruco_dict', rclpy.Parameter.Type.STRING),
-                ('marker_size', rclpy.Parameter.Type.DOUBLE)
-            ]
-        )
+        self.config_loaded = False
+        self.aruco_dict = None
+        self.marker_size = 0.0
 
-        self.aruco_dict_name = self.get_parameter('aruco_dict').get_parameter_value().string_value
-        self.marker_size = self.get_parameter('marker_size').get_parameter_value().double_value
-
-        self.aruco_dict = cv2.aruco.Dictionary_get(self.ARUCO_DICT[self.aruco_dict_name])
         self.aruco_parameters = cv2.aruco.DetectorParameters_create()
         self.bridge = CvBridge()
 
         self.camera_matrix = None
         self.distortion_coeffs = None
-        self.camera_info_received = False
-        self.get_logger().info('ArUco Detector node has been started. Waiting for camera info...')
+
+        # Service and Subcription for Dynamic State
+        self.map_loader_client_ = self.create_client(GetMap, '/map_database/get_map')
+        self.map_signal_sub_ = self.create_subscription(String, '/map_database/map_update_signal', self.mapSignalCallback, 10)
 
         # Subscriptions
         image_sub = message_filters.Subscriber(self, Image, '/camera/image_raw')
@@ -65,7 +62,45 @@ class ArucoDetector(Node):
         self.aruco_pose_pub_ = self.create_publisher(MarkerArray, '/aruco/pose', 10)
         self.image_marked_pub_ = self.create_publisher(Image, '/camera/image_marked', 10)
 
+        self.get_logger().info('ArUco Detector node has been started. Waiting for camera info...')
+
+        self.load_config()
+    
+    def mapSignalCallback(self, map_signal_msg):
+        self.get_logger().info(f"Configuration update signal received: {map_signal_msg.data}. Fetching new config.")
+        self.load_config()
+
+    def load_config(self):
+        if not self.map_loader_client_.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('Map configuration service not available.')
+            return
+
+        request = GetMap.Request()
+        future = self.map_loader_client_.call_async(request)
+        future.add_done_callback(self.configLoadDoneCallback)
+
+    def configLoadDoneCallback(self, future):
+        try:
+            response = future.result()
+            if response.success:
+                # Update local configuration variables
+                self.marker_size = response.marker_size
+                self.aruco_dict = cv2.aruco.Dictionary_get(self.ARUCO_DICT[response.marker_dictionary])
+                self.config_loaded = True
+
+                self.get_logger().info(f"SUCESS: Loaded ArUco Config: Dict={response.marker_dictionary}, Size={self.marker_size}cm")
+            else:
+                self.get_logger().error(f"Failed to retrieve ArUco configuration: {response.message}")
+                self.config_loaded = False
+        except Exception as e:
+            self.get_logger().error(f'Service call failed during config fetch: {e}')
+            self.config_loaded = False
+
     def imageInfoCallback(self, image_msg, camera_info_msg):
+        if not self.config_loaded:
+            self.get_logger().debug("Skipping image processing: Configuration not yet loaded.")
+            return
+        
         # Update camera parameters from the CameraInfo message
         self.camera_matrix = np.array(camera_info_msg.k).reshape(3,3)
         self.distortion_coeffs = np.array(camera_info_msg.d)
@@ -125,9 +160,17 @@ class ArucoDetector(Node):
 def main(args=None):
     rclpy.init(args=args)
     aruco_detector = ArucoDetector()
-    rclpy.spin(aruco_detector)
-    aruco_detector.destroy_node()
-    rclpy.shutdown()
+
+    executor = MultiThreadedExecutor()
+    executor.add_node(aruco_detector)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        aruco_detector.destroy_node()
+        rclpy.shutdown
 
 if __name__ == '__main__':
     main()
