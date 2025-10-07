@@ -15,6 +15,8 @@ class MapLoader(Node):
         super().__init__('map_loader')
 
         self.current_map = MarkerArray()
+        self.marker_dictionary = ""
+        self.marker_size = 0.0
 
         # Declare parameter
         self.declare_parameter('database_path', '~/agv/agv_data/map_data.db')
@@ -65,15 +67,15 @@ class MapLoader(Node):
             cursor = self.db_connection.cursor()
 
             # Find the map_id by name
-            cursor.execute("SELECT map_id FROM Maps WHERE map_name = ?", (map_name,))
-            map_record = cursor.fetchone()
+            cursor.execute("SELECT map_id, marker_dictionary, marker_size FROM Maps WHERE map_name = ?", (map_name,))
+            map_metadata = cursor.fetchone()
 
-            if not map_record:
+            if not map_metadata:
                 response.message = f"Map name '{map_name}' not found in database."
                 self.get_logger().warn(response.message)
                 return response
             
-            map_id = map_record['map_id']
+            map_id = map_metadata['map_id']
 
             cursor.execute("SELECT marker_id, x_coord, y_coord, orientation FROM Markers WHERE map_id = ?", (map_id,))
             map_data = cursor.fetchall()
@@ -91,7 +93,8 @@ class MapLoader(Node):
                 marker.pose.pose.position.y = row['y_coord']
                 marker.pose.pose.position.z = 0.0
 
-                quaternion = quaternion_from_euler(0, 0, np.deg2rad(row['orientation']))
+                yaw_in_radians = row['orientation']
+                quaternion = quaternion_from_euler(0, 0, yaw_in_radians)
                 marker.pose.pose.orientation.x = quaternion[0]
                 marker.pose.pose.orientation.y = quaternion[1]
                 marker.pose.pose.orientation.z = quaternion[2]
@@ -100,6 +103,8 @@ class MapLoader(Node):
                 new_map_array.markers.append(marker)
 
             self.current_map = new_map_array
+            self.marker_dictionary = map_metadata['marker_dictionary']
+            self.marker_size = map_metadata['marker_size']
 
             map_signal_msg = String()
             map_signal_msg.data = f"MAP_UPDATE_SUCCESS: {map_name}"
@@ -122,6 +127,8 @@ class MapLoader(Node):
     def returnMapCallback(self, request, response):
         if self.current_map is not None and len(self.current_map.markers) > 0:
             response.map_data = self.current_map
+            response.marker_dictionary = self.marker_dictionary
+            response.marker_size = self.marker_size
             response.success = True
             response.message = f"Successfully retrieved map with {len(self.current_map.markers)} markers."
         else:
