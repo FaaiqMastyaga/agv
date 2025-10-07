@@ -1,5 +1,7 @@
 # Request
 string map_name
+string marker_dictionary
+float32 marker_size
 aruco_msgs/MarkerArray map_data
 ---
 # Response
