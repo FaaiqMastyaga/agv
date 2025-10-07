@@ -49,6 +49,8 @@ class MapSaver(Node):
             CREATE TABLE IF NOT EXISTS Maps (
                 map_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 map_name TEXT NOT NULL UNIQUE,
+                marker_dictionary TEXT NOT NULL,
+                marker_size FLOAT NOT NULL, 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -72,6 +74,8 @@ class MapSaver(Node):
 
     def handleSaveMap(self, request, response):
         map_name = request.map_name
+        marker_dictionary = request.marker_dictionary
+        marker_size = request.marker_size
         map_data = request.map_data
 
         response.success = False
@@ -94,11 +98,11 @@ class MapSaver(Node):
             if existing_record:
                 # UPDATE (Overwrite) Maps Table
                 map_id = existing_record['map_id']
-                cursor.execute("UPDATE Maps SET created_at = CURRENT_TIMESTAMP WHERE map_id = ?", (map_id,))
+                cursor.execute("UPDATE Maps SET marker_dictionary = ?, marker_size = ?, created_at = CURRENT_TIMESTAMP WHERE map_id = ?", (marker_dictionary, marker_size, map_id,))
                 self.get_logger().info(f"Updating existing map record: {map_name}")
             else:
                 # INSERT (Create new record) to Maps Table
-                cursor.execute("INSERT INTO Maps (map_name) VALUES (?)", (map_name,))
+                cursor.execute("INSERT INTO Maps (map_name, marker_dictionary, marker_size) VALUES (?, ?, ?)", (map_name, marker_dictionary, marker_size,))
                 map_id = cursor.lastrowid
                 self.get_logger().info(f"Inserting new map record: {map_name} (ID: {map_id})")
 
