@@ -44,14 +44,14 @@ class ArucoLocalization(Node):
             aruco_pose = aruco_marker.pose.pose
             
             position = aruco_pose.position
-            orientation = aruco_pose.pose.orientation
+            orientation = aruco_pose.orientation
 
             marker_cam_tf = quaternion_matrix([orientation.x, orientation.y, orientation.z, orientation.w])
             marker_cam_tf[:3, 3] = [position.x, position.y, position.z]
 
             agv_world_tf = concatenate_matrices(self.marker_world_tf, inverse_matrix(marker_cam_tf), self.agv_cam_tf)
             agv_world_pose = agv_world_tf[:3, 3] 
-            agv_world_angle = quaternion_from_matrix(agv_world_tf[:3,:3])
+            agv_world_angle = quaternion_from_matrix(agv_world_tf)
 
             robot_pose = Pose()
             robot_pose.position.x = agv_world_pose[0]
@@ -71,9 +71,10 @@ class ArucoLocalization(Node):
 
     def loadMap(self):
         self.map_loader_req = None
-        self.map_loader_result = self.map_loader_client_.call_async(self.map_loader_req)
+        # self.map_loader_result = self.map_loader_client_.call_async(self.map_loader_req)
 
-        return self.map_loader_result.result()
+        # return self.map_loader_result.result()
+        pass
 
 def main(args=None):
     rclpy.init(args=args)
