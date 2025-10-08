@@ -48,6 +48,55 @@ function toEuler(q) {
     };
 }
 
+// Subscribe to the /robot/pose topic
+var robot_pose_listener = new ROSLIB.Topic({
+    ros: ros,
+    name: '/robot/pose',
+    messageType: 'geometry_msgs/PoseArray'
+});
+
+robot_pose_listener.subscribe(function(message) {
+    let outputHTML = '';
+    
+    if (message.poses.length > 0) {
+        message.poses.forEach(pose => {
+            const position = pose.position;
+            const orientation = pose.orientation;
+            
+            // Convert quaternion to Euler angles
+            const euler = toEuler(orientation);
+            
+            // Convert radians to degrees
+            const yaw_deg = euler.roll * 180 / Math.PI;
+            const pitch_deg = euler.pitch * 180 / Math.PI;
+            const roll_deg = euler.yaw * 180 / Math.PI;
+            
+            // Generate HTML for each marker
+            outputHTML += `
+            <p><strong>Robot Position:</strong></p>
+            <ul>
+            <li>x: ${position.x.toFixed(4)} mm</li>
+            <li>y: ${position.y.toFixed(4)} mm</li>
+            <li>z: ${position.z.toFixed(4)} mm</li>
+            </ul>
+            <p><strong>Robot Orientation (Euler in Degrees):</strong></p>
+            <ul>
+            <li>Roll: ${roll_deg.toFixed(2)} degree</li>
+            <li>Pitch: ${pitch_deg.toFixed(2)} degree</li>
+            <li>Yaw: ${yaw_deg.toFixed(2)} degree</li>
+            </ul>
+            <hr>
+            `;
+        });
+    } else {
+        outputHTML = '<p>No ArUco markers detected.</p>';
+    }
+    
+    // Update the HTML element with the generated data
+    // document.getElementById('aruco_data').innerHTML = outputHTML;
+    document.getElementById('robot_data').innerHTML = outputHTML;
+});
+
 // Subscribe to the /aruco/pose topic
 var aruco_pose_listener = new ROSLIB.Topic({
     ros: ros,
@@ -56,9 +105,9 @@ var aruco_pose_listener = new ROSLIB.Topic({
 });
 
 aruco_pose_listener.subscribe(function(message) {
-    let outputHTML = '';
+        let outputHTML = '';
     
-    if (message.markers.length > 0) {
+        if (message.markers.length > 0) {
         message.markers.forEach(marker => {
             const position = marker.pose.pose.position;
             const orientation = marker.pose.pose.orientation;
