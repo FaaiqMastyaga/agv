@@ -12,12 +12,8 @@ class ArucoLocalization(Node):
 
         self.current_map_data = None
 
-        self.agv_cam_pose = [0.0, 0.0, 0.0] # x,y,z
-        self.agv_cam_angle = [0.0, np.deg2rad(10), 0.0] # roll, pitch, yaw
-        self.agv_cam_tf = compose_matrix(translate=self.agv_cam_pose, angles=self.agv_cam_angle)
-
-        self.marker_world_pose = [2.0, 1.0, 0.0] # x,y,z
-        self.marker_world_angle = [0.0, 0.0, 0.0] # roll, pitch, yaw
+        self.marker_world_pose = [20.0, 10.0, 0.0] # x,y,z
+        self.marker_world_angle = [0.0, 0.0, np.deg2rad(0)] # roll, pitch, yaw
         self.marker_world_tf = compose_matrix(translate=self.marker_world_pose, angles=self.marker_world_angle)
 
         # Subscriptions
@@ -49,7 +45,7 @@ class ArucoLocalization(Node):
             marker_cam_tf = quaternion_matrix([orientation.x, orientation.y, orientation.z, orientation.w])
             marker_cam_tf[:3, 3] = [position.x, position.y, position.z]
 
-            agv_world_tf = concatenate_matrices(self.marker_world_tf, inverse_matrix(marker_cam_tf), self.agv_cam_tf)
+            agv_world_tf = concatenate_matrices(self.marker_world_tf, inverse_matrix(marker_cam_tf))
             agv_world_pose = agv_world_tf[:3, 3] 
             agv_world_angle = quaternion_from_matrix(agv_world_tf)
 
