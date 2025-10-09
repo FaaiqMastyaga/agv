@@ -151,7 +151,6 @@ class MapLoader(Node):
             cursor = self.db_connection.cursor()
 
             # Query all map name
-            cursor.execute("SELECT map_id, marker_dictionary, marker_size FROM Maps WHERE map_name = ?", (map_name,))
             cursor.execute("SELECT map_name FROM Maps ORDER BY map_name ASC")
             map_records = cursor.fetchall()
 
