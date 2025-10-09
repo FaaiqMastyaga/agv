@@ -17,6 +17,8 @@ ros.on('connection', function() {
     document.getElementById('status').innerText = 'Status: Connected';
     // Initialize the default page
     showPage('setup_map');
+
+    populateMapList();
 });
 
 ros.on('error', function(error) {
@@ -214,6 +216,55 @@ function updateMapVisualization() {
 // Add event listeners to update map visualization on input change
 document.getElementById('marker_list').addEventListener('input', updateMapVisualization);
 
+// --- MAP LIST FETCHING ---
+
+/**
+ * Fetches the list of all available map names from the ROS backend
+ * and populates the dropdown list on the Setup Map page.
+ * NOTE: Assumes a custom service type: map_database_interfaces/srv/GetAllMaps
+ * Request: {}
+ * Response: { string[] map_names, bool success, string message }
+ */
+function populateMapList() {
+    const mapSelect = document.getElementById('load_map_name');
+    const loadStatusElement = document.getElementById('load_status');
+    
+    // Clear the existing list and set the loading status
+    mapSelect.innerHTML = '<option value="" disabled selected>Loading Maps...</option>';
+    loadStatusElement.innerText = 'Fetching map list...';
+
+    const getAllMapsClient = new ROSLIB.Service({
+        ros: ros,
+        name: '/map_database/get_all_map_names',
+        serviceType: 'map_database_interfaces/srv/GetAllMaps' // User must create this service type
+    });
+
+    const request = new ROSLIB.ServiceRequest({});
+
+    getAllMapsClient.callService(request, function(result) {
+        if (result.success && result.map_names && result.map_names.length > 0) {
+            
+            // Clear the loading option
+            mapSelect.innerHTML = '<option value="" disabled selected>--- Select a Map ---</option>';
+            
+            result.map_names.forEach(mapName => {
+                const option = document.createElement('option');
+                option.value = mapName;
+                option.textContent = mapName;
+                mapSelect.appendChild(option);
+            });
+
+            loadStatusElement.innerText = `Found ${result.map_names.length} maps.`;
+        } else {
+            mapSelect.innerHTML = '<option value="" disabled selected>--- No Maps Found ---</option>';
+            loadStatusElement.innerText = `No maps found or service failed: ${result.message || 'Unknown error'}`;
+        }
+    }, function(error) {
+        mapSelect.innerHTML = '<option value="" disabled selected>--- Error Fetching Maps ---</option>';
+        loadStatusElement.innerText = `Service communication error: ${error}`;
+        console.error('Get All Maps Comm Error:', error);
+    });
+}
 
 function saveMap() {
     const mapName = document.getElementById('map_name').value;
