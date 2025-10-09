@@ -16,6 +16,7 @@ find_package(geometry_msgs REQUIRED)
 set(srv_files
   srv/LoadMap.srv
   srv/GetMap.srv
+  srv/GetMapName.srv
   srv/SaveMap.srv
 )
 
