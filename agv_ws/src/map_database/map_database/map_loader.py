@@ -3,7 +3,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose2D
 from aruco_msgs.msg import Marker, MarkerArray
-from map_database_interfaces.srv import LoadMap, GetMap
+from map_database_interfaces.srv import LoadMap, GetMap, GetMapName
 from tf_transformations import quaternion_from_euler
 import numpy as np
 import sqlite3
@@ -26,7 +26,8 @@ class MapLoader(Node):
 
         # Service Server
         self.map_loader_server_ = self.create_service(LoadMap, '/map_database/load_map', self.loadMapCallback)
-        self.map_getter_server_ = self.create_service(GetMap, '/map_database/get_map', self.returnMapCallback)
+        self.map_getter_server_ = self.create_service(GetMap, '/map_database/get_map', self.getMapCallback)
+        self.map_list_getter_server_ = self.create_service(GetMapName, '/map_database/get_map_name', self.getMapNameCallback)
 
         # Publisher
         self.map_signal_pub_ = self.create_publisher(String, '/map_database/map_update_signal', 10)
@@ -124,7 +125,7 @@ class MapLoader(Node):
         
         return response
 
-    def returnMapCallback(self, request, response):
+    def getMapCallback(self, request, response):
         if self.current_map is not None and len(self.current_map.markers) > 0:
             response.map_data = self.current_map
             response.marker_dictionary = self.marker_dictionary
@@ -136,7 +137,35 @@ class MapLoader(Node):
             response.message = "No map data is currently cached in the loader node."
 
         return response
+    
+    def getMapNameCallback(self, request, response):
+        response.success = False
+        response.map_names = []
 
+        if not self.db_connection:
+            response.message = "Database connection is not available."
+            self.get_logger().error(response.message)
+            return response
+
+        try:
+            cursor = self.db_connection.cursor()
+
+            # Query all map name
+            cursor.execute("SELECT map_id, marker_dictionary, marker_size FROM Maps WHERE map_name = ?", (map_name,))
+            cursor.execute("SELECT map_name FROM Maps ORDER BY map_name ASC")
+            map_records = cursor.fetchall()
+
+            response.map_names = [row['map_name'] for row in map_records]
+            response.success = True
+            response.message = f"Successfully retrieved {len(response.map_name)} map_names."
+            self.get_logger().info(response.message)
+
+        except sqlite3.Error as e:
+            response.message = f"SQLite Database Error: {e}"
+            self.get_logger().error(response.message)
+
+        return response
+    
 def main(args=None):
     rclpy.init(args=args)
     map_loader = MapLoader()
