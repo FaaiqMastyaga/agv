@@ -42,10 +42,12 @@
         <div id="setup_map_content">
             <div id="map_form_area">
                 <h3>Load Existing Map</h3>
-                <input type="text" id="load_map_name" placeholder="Map Name to Load (e.g., WarehouseA)">
+                <select id="load_map_name">
+                    <option value="" disabled selected>--- Loading Maps ---</option>
+                </select>
                 <button onclick="loadMap()">Load Map</button>
+                <button onclick="populateMapList()">Refresh List</button> 
                 <p id="load_status"></p>
-
                 <hr>
 
                 <h3>Setup & Save New Map</h3>
