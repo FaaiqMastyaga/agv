@@ -235,7 +235,7 @@ function populateMapList() {
 
     const getAllMapsClient = new ROSLIB.Service({
         ros: ros,
-        name: '/map_database/get_all_map_names',
+        name: '/map_database/get_map_name',
         serviceType: 'map_database_interfaces/srv/GetAllMaps' // User must create this service type
     });
 
