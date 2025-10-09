@@ -156,7 +156,7 @@ class MapLoader(Node):
 
             response.map_names = [row['map_name'] for row in map_records]
             response.success = True
-            response.message = f"Successfully retrieved {len(response.map_name)} map_names."
+            response.message = f"Successfully retrieved {len(response.map_names)} map_names."
             self.get_logger().info(response.message)
 
         except sqlite3.Error as e:
