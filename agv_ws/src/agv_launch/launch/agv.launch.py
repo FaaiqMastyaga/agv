@@ -30,7 +30,7 @@ def generate_launch_description():
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(localization_dir, 'launch', 'map_handler.launch.py')
+                os.path.join(map_database_dir, 'launch', 'map_handler.launch.py')
             )
         ),
     ])
