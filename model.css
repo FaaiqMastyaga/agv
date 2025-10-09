@@ -1,0 +1,150 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f6fa;
+  color: #333;
+}
+
+.topbar {
+  background: #2f3640;
+  color: white;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.tab-btn {
+  background: #353b48;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  margin-left: 4px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.3s;
+}
+
+.tab-btn:hover {
+  background: #4f5a6b;
+}
+
+.tab-btn.active {
+  background: #0097e6;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.tab-pane {
+  display: none;
+  /* Atur agar panel bersebelahan secara horizontal */
+  flex-direction: row; 
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+.left-panel, .right-panel {
+  flex: 1;
+  margin: 10px;
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+  min-width: 300px; /* Batasan agar tidak terlalu kecil */
+}
+
+/* Panel Operasi yang lebih kecil */
+#operation .left-panel {
+    flex: 0 0 350px; /* Ukuran tetap untuk kontrol */
+}
+#operation .right-panel {
+    flex: 1; /* Sisa ruang untuk visualisasi */
+}
+
+input, select {
+  width: 100%;
+  padding: 8px;
+  margin: 4px 0 12px 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box; /* Penting untuk width: 100% */
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+}
+.row input {
+    flex: 1;
+    width: auto;
+}
+
+button {
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #f0f0f0;
+  transition: background 0.3s;
+}
+button:hover {
+    background: #e0e0e0;
+}
+
+.primary {
+  background: #0097e6;
+  color: white;
+  border: none;
+}
+.primary:hover {
+    background: #007bb5;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  text-align: center;
+  padding: 6px;
+}
+
+td input[type="number"] {
+    width: 60px;
+    margin: 0;
+    padding: 4px;
+    text-align: center;
+    border: none;
+    border-bottom: 1px solid #eee;
+}
+
+canvas {
+  border: 1px solid #ccc;
+  background: #fafafa;
+}
+
+#cameraFeed {
+    display: block;
+    margin: 10px auto;
+}
+
+.hint {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: -5px;
+    margin-bottom: 15px;
+}
