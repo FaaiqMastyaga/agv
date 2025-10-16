@@ -1,131 +1,150 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="id">
 <head>
-    <title>AGV Localization Interface</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/roslibjs/1.1.0/roslib.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-        .header { background-color: #333; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .nav-buttons button { background-color: #555; color: white; border: none; padding: 8px 15px; margin-left: 10px; cursor: pointer; }
-        .nav-buttons button.active { background-color: #007bff; }
-        .page-content { padding: 20px; display: none; } /* Hidden by default */
-        .page-content.active { display: block; }
-
-        /* Map and Video Layout */
-        #operation_page_content { display: flex; gap: 20px; }
-        #map_container { border: 1px solid #ccc; background-color: #f8f8f8; }
-        #agv-map, #setup-map-svg { background-color: #fff; border: 1px solid #333; }
-        #video_stream { max-width: 100%; height: auto; }
-        #joystick_container { border: 2px dashed #007bff; padding: 20px; text-align: center; margin-top: 20px;}
-
-        /* Setup Map Styling */
-        #setup_map_content { display: flex; gap: 20px; }
-        #map_form_area, #map_visualization_area { flex: 1; }
-        .marker-entry { border: 1px dashed #ccc; padding: 10px; margin-bottom: 10px; }
-
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AGV Localization Interface</title>
+  
+  <link rel="stylesheet" href="css/model.css" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/roslib@1.0.1/build/roslib.js"></script>
 </head>
 <body>
-    <div class="header">
-        <h1>AGV Localization Interface</h1>
-        <div class="nav-buttons">
-            <button onclick="showPage('setup_map')" id="btn_setup_map">Setup Map</button>
-            <button onclick="showPage('calibration')" id="btn_calibration">Calibration</button>
-            <button onclick="showPage('operation')" id="btn_operation">Operation</button>
+  <header class="topbar">
+    <div class="title">AGV Localization Interface</div>
+    <div class="top-actions">
+      <button class="tab-btn active" data-tab="setup" id="btn_setup">Setup Map</button>
+      <button class="tab-btn" data-tab="operation" id="btn_operation">Operation</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="setup" class="tab-pane active">
+      <div class="left-panel">
+        <h2>Setup Map</h2>
+
+        <label>Nama Map:</label>
+        <input id="mapName" type="text" placeholder="contoh: ruang_lab" value="ruang_lab">
+
+        <label>Ukuran Map (cm):</label>
+        <div class="row">
+          <input id="mapWidth" type="number" step="1" placeholder="Panjang (X)" value="600.0">
+          <input id="mapHeight" type="number" step="1" placeholder="Lebar (Y)" value="600.0">
         </div>
-    </div>
 
-    <p id="status" style="padding: 0 20px;">Connecting...</p>
+        <label>Ukuran Marker (cm):</label>
+        <input id="markerSize" type="number" step="1" value="5.0">
 
-    <div id="setup_map_page" class="page-content active">
-        <h2>Map Configuration</h2>
-        <div id="setup_map_content">
-            <div id="map_form_area">
-                <h3>Load Existing Map</h3>
-                <select id="load_map_name">
-                    <option value="" disabled selected>--- Loading Maps ---</option>
-                </select>
-                <button onclick="loadMap()">Load Map</button>
-                <button onclick="populateMapList()">Refresh List</button> 
-                <p id="load_status"></p>
-                <hr>
+        <label>Dictionary Marker:</label>
+        <select id="markerDict" required>
+          <option value="DICT_4X4_50" selected>DICT_4X4_50</option>
+          <option value="DICT_4X4_50">DICT_4X4_50</option>
+          <option value="DICT_4X4_100" selected>DICT_4X4_100</option>
+          <option value="DICT_4X4_250">DICT_4X4_250</option>
+          <option value="DICT_4X4_1000">DICT_4X4_1000</option>
+          <option value="DICT_5X5_50">DICT_5X5_50</option>
+          <option value="DICT_5X5_100">DICT_5X5_100</option>
+          <option value="DICT_5X5_250">DICT_5X5_250</option>
+          <option value="DICT_5X5_1000">DICT_5X5_1000</option>
+          <option value="DICT_6X6_50">DICT_6X6_50</option>
+          <option value="DICT_6X6_100">DICT_6X6_100</option>
+          <option value="DICT_6X6_250">DICT_6X6_250</option>
+          <option value="DICT_6X6_1000">DICT_6X6_1000</option>
+          <option value="DICT_7X7_50">DICT_7X7_50</option>
+          <option value="DICT_7X7_100">DICT_7X7_100</option>
+          <option value="DICT_7X7_250">DICT_7X7_250</option>
+          <option value="DICT_7X7_1000">DICT_7X7_1000</option>
+          <option value="DICT_ARUCO_ORIGINAL">DICT_ARUCO_ORIGINAL</option>
+        </select>
 
-                <h3>Setup & Save New Map</h3>
-                <label>Map Name:</label><br>
-                <input type="text" id="map_name" required><br><br>
-
-                <label>Marker Dictionary:</label><br>
-                <select id="marker_dictionary" required>
-                    <option value="DICT_4X4_50">DICT_4X4_50</option>
-                    <option value="DICT_4X4_100" selected>DICT_4X4_100</option>
-                    <option value="DICT_4X4_250">DICT_4X4_250</option>
-                    <option value="DICT_4X4_1000">DICT_4X4_1000</option>
-                    <option value="DICT_5X5_50">DICT_5X5_50</option>
-                    <option value="DICT_5X5_100">DICT_5X5_100</option>
-                    <option value="DICT_5X5_250">DICT_5X5_250</option>
-                    <option value="DICT_5X5_1000">DICT_5X5_1000</option>
-                    <option value="DICT_6X6_50">DICT_6X6_50</option>
-                    <option value="DICT_6X6_100">DICT_6X6_100</option>
-                    <option value="DICT_6X6_250">DICT_6X6_250</option>
-                    <option value="DICT_6X6_1000">DICT_6X6_1000</option>
-                    <option value="DICT_7X7_50">DICT_7X7_50</option>
-                    <option value="DICT_7X7_100">DICT_7X7_100</option>
-                    <option value="DICT_7X7_250">DICT_7X7_250</option>
-                    <option value="DICT_7X7_1000">DICT_7X7_1000</option>
-                    <option value="DICT_ARUCO_ORIGINAL">DICT_ARUCO_ORIGINAL</option>
-                </select><br><br>
-
-                <label>Marker Size (m):</label><br>
-                <input type="number" id="marker_size" step="0.001" value="0.05" required><br><br>
-
-                <h4>Markers:</h4>
-                <div id="marker_list">
-                    </div>
-                <button onclick="addMarkerField()">Add Marker</button>
-                <button onclick="saveMap()" style="background-color: green; color: white;">Save Map</button>
-                <p id="save_status"></p>
-            </div>
-            
-            <div id="map_visualization_area">
-                <h3>Map Visualization (X/Y in meters)</h3>
-                <div id="map_container">
-                    <svg id="setup-map-svg" width="600" height="400" viewBox="0 0 600 400"></svg>
-                </div>
-            </div>
+        <div id="markerListContainer">
+          <h3>List Marker</h3>
+          <table id="markerTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>X (cm)</th><th>Y (cm)</th><th>Orientasi (°)</th><th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button id="addMarkerBtn">Tambah Marker</button>
         </div>
-    </div>
 
-    <div id="calibration_page" class="page-content">
-        <h2>Camera Calibration</h2>
-        <p>This page will contain the sequence and controls for camera calibration (e.g., start calibration service, view feedback).</p>
-    </div>
-
-    <div id="operation_page" class="page-content">
-        <h2>AGV Operation Dashboard</h2>
-        <div id="operation_page_content">
-            <div style="flex: 2;">
-                <h3>Live Camera Feed</h3>
-                <img id="video_stream" src="http://127.0.0.1:8080/stream?topic=/camera/image_marked" alt="AGV Camera Stream" />
-                
-                <h3>AGV & Detection Data</h3>
-                <div id="robot_data"></div>
-                <div id="aruco_data"></div>
-            </div>
-
-            <div style="flex: 3;">
-                <h3>Real-time Map</h3>
-                <div id="map_container">
-                    <svg id="operation-map-svg" width="100%" height="auto" viewBox="0 0 600 400"></svg>
-                </div>
-                
-                <div id="joystick_container">
-                    <h3>AGV Manual Control (Joystick Placeholder)</h3>
-                    <p>Use a third-party library (like **nipplejs**) here to create a virtual joystick that publishes to the `/cmd_vel` topic.</p>
-                </div>
-            </div>
+        <div class="actions-row">
+          <button id="saveMapBtn" class="primary">Simpan Map (Local)</button>
+          
+          <hr>
+          <h3>ROS Database Management</h3>
+          <select id="load_map_name">
+              <option value="" disabled selected>--- Loading Maps ---</option>
+          </select>
+          <button onclick="loadMap()">Load Map (ROS)</button>
+          <button onclick="populateMapList()">Refresh List</button> 
+          <p id="load_status"></p>
+          <p id="save_status"></p>
         </div>
-    </div>
+      </div>
 
-    <script src="js/main.js"></script>
+      <div class="right-panel">
+        <h3>Visualisasi Map Setup</h3>
+        <canvas id="mapCanvas" width="600" height="600"></canvas>
+        <p class="hint">Klik pada canvas untuk menandai posisi marker.</p>
+      </div>
+    </section>
+
+    <section id="operation" class="tab-pane">
+      <div class="left-panel small">
+        <h2>Operation & Control</h2>
+        
+        <h3>ROS Connection</h3>
+        <div id="cameraFeedContainer">
+            <p id="rosStatus">Status: Disconnected</p>
+            <input id="rosBridgeUrl" type="text" value="ws://localhost:9090" placeholder="ROS-bridge URL">
+            <button id="connectRosBtn" class="primary">Connect ROS</button>
+        </div>
+
+        <hr>
+
+        <h3>Informasi AGV</h3>
+        <div id="agv_data">
+            <h4>AGV Filtered/Best Pose:</h4>
+            <ul id="agvInfo">
+              <li>Posisi X: <span id="posX">-</span></li>
+              <li>Posisi Y: <span id="posY">-</span></li>
+              <li>Orientasi Yaw: <span id="posYaw">-</span></li>
+            </ul>
+        </div>
+        
+        <hr>
+        
+        <div id="detected_poses">
+            <h3>All Detected Pose Hypotheses:</h3>
+            <p>No hypotheses received yet.</p>
+        </div>
+
+        <hr>
+
+        <div id="aruco_data">
+            <h3>Camera-Local Marker Poses:</h3>
+            <p>Waiting for camera detection data...</p>
+        </div>
+      </div>
+
+      <div class="right-panel small">
+        <h3>Live Camera Feed</h3>
+        <img id="cameraFeed" width="100%" src="#" alt="AGV Camera Stream" style="border: 1px solid #ccc;"/>
+        
+        <h3>Visualisasi Navigasi</h3>
+        <canvas id="opMapCanvas" width="600" height="600"></canvas>
+
+        <div id="joystick_container" style="margin-top: 20px; text-align: center;">
+            <h3>AGV Manual Control (Joystick Placeholder)</h3>
+            <p class="hint">Use a third-party library (like nipplejs) here to create a virtual joystick that publishes to the /cmd_vel topic.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/main.js" defer></script> 
 </body>
 </html>
