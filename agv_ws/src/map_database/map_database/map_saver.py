@@ -11,9 +11,12 @@ class MapSaver(Node):
     def __init__(self):
         super().__init__('map_saver')
 
-        # Declare parameter
+        home_dir = os.path.expanduser('~/agv')
+        self.data_dir = os.path.join(home_dir, 'agv_data')
+        self.db_filename = 'map_data.db'
+        self.db_path = os.path.join(self.data_dir, self.db_filename)
         self.declare_parameter('database_path', '~/agv/agv_data/map_data.db')
-        self.db_path = os.path.expanduser(self.get_parameter('database_path').get_parameter_value().string_value)
+
         self.db_connection = None
         self.connect_to_db()
 
@@ -24,6 +27,11 @@ class MapSaver(Node):
 
     def connect_to_db(self):
         try:
+            if not os.path.exists(self.data_dir):
+                os.makedirs(self.data_dir, exist_ok=True)
+                self.get_logger().info(f"Created data directory: {self.data_dir}")
+
+
             self.db_connection = sqlite3.connect(self.db_path, check_same_thread=False)
             self.db_connection.row_factory = sqlite3.Row
             self.get_logger().info('Successfully connected to SQLite database.')
@@ -49,6 +57,8 @@ class MapSaver(Node):
             CREATE TABLE IF NOT EXISTS Maps (
                 map_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 map_name TEXT NOT NULL UNIQUE,
+                x_length FLOAT NOT NULL,
+                y_length FLOAT NOT NULL,
                 marker_dictionary TEXT NOT NULL,
                 marker_size FLOAT NOT NULL, 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -74,6 +84,8 @@ class MapSaver(Node):
 
     def handleSaveMap(self, request, response):
         map_name = request.map_name
+        x_length = request.x_length
+        y_length = request.y_length
         marker_dictionary = request.marker_dictionary
         marker_size = request.marker_size
         map_data = request.map_data
@@ -98,11 +110,11 @@ class MapSaver(Node):
             if existing_record:
                 # UPDATE (Overwrite) Maps Table
                 map_id = existing_record['map_id']
-                cursor.execute("UPDATE Maps SET marker_dictionary = ?, marker_size = ?, created_at = CURRENT_TIMESTAMP WHERE map_id = ?", (marker_dictionary, marker_size, map_id,))
+                cursor.execute("UPDATE Maps SET x_length = ?, y_length = ?, marker_dictionary = ?, marker_size = ?, created_at = CURRENT_TIMESTAMP WHERE map_id = ?", (x_length, y_length, marker_dictionary, marker_size, map_id,))
                 self.get_logger().info(f"Updating existing map record: {map_name}")
             else:
                 # INSERT (Create new record) to Maps Table
-                cursor.execute("INSERT INTO Maps (map_name, marker_dictionary, marker_size) VALUES (?, ?, ?)", (map_name, marker_dictionary, marker_size,))
+                cursor.execute("INSERT INTO Maps (map_name, x_length, y_length, marker_dictionary, marker_size) VALUES (?, ?, ?, ?, ?)", (map_name, x_length, y_length, marker_dictionary, marker_size,))
                 map_id = cursor.lastrowid
                 self.get_logger().info(f"Inserting new map record: {map_name} (ID: {map_id})")
 
@@ -115,6 +127,13 @@ class MapSaver(Node):
             # Insert new markers
             marker_data_list = []
             for marker in map_data.markers:
+                if (marker.pose.pose.position.x > x_length) or (marker.pose.pose.position.y > y_length):
+                    response.message = f"Map '{map_name}' is too small, one or more markers are outside the map."
+                    self.get_logger().error(response.message)
+                    
+                    self.db_connection.rollback()
+                    return response
+
                 # Convert quaternion to euler
                 quaternion = [
                     marker.pose.pose.orientation.x,

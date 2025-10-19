@@ -4,6 +4,8 @@
 # Response
 bool success
 string message
+float32 x_length
+float32 y_length
 string marker_dictionary
 float32 marker_size
 aruco_msgs/MarkerArray map_data
