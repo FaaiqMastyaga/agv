@@ -120,8 +120,8 @@ function quaternionToYaw(q) {
 
 // --- RENDERING FUNCTIONS (Canvas) ---
 function getMapScale() {
-    const width = parseFloat(document.getElementById("mapWidth").value) || MAX_MAP_WIDTH_CM;
-    const height = parseFloat(document.getElementById("mapHeight").value) || MAX_MAP_HEIGHT_CM;
+    const width = parseFloat(document.getElementById("xLength").value) || MAX_MAP_WIDTH_CM;
+    const height = parseFloat(document.getElementById("yLength").value) || MAX_MAP_HEIGHT_CM;
     
     const scaleX = mapCanvas.width / width;
     const scaleY = mapCanvas.height / height;
@@ -177,7 +177,7 @@ function renderMap() {
         ctx.lineTo(15, 0); 
         ctx.stroke();
         ctx.restore();
-
+300
         ctx.fillText(`ID ${m.id} (${m.yaw}°)`, centerX + 8, centerY - 8);
     });
     console.log(`Map Setup rendered with ${markers.length} markers.`);
@@ -310,8 +310,8 @@ function loadMapData() {
     if (savedData) {
         const mapData = JSON.parse(savedData);
         if (document.getElementById("mapName")) document.getElementById("mapName").value = mapData.name || "ruang_lab";
-        if (document.getElementById("mapWidth")) document.getElementById("mapWidth").value = mapData.width || 600.0;
-        if (document.getElementById("mapHeight")) document.getElementById("mapHeight").value = mapData.height || 600.0;
+        if (document.getElementById("xLength")) document.getElementById("xLength").value = mapData.width || 600.0;
+        if (document.getElementById("yLength")) document.getElementById("yLength").value = mapData.height || 600.0;
         if (document.getElementById("markerSize")) document.getElementById("markerSize").value = mapData.markerSize || 5.0;
         if (document.getElementById("markerDict")) document.getElementById("markerDict").value = mapData.dict || "DICT_4X4_50";
         markers = mapData.markers || [];
@@ -406,7 +406,9 @@ function saveMap() {
     updateMapVisualization(); 
 
     // --- Gather Required Inputs ---
-    const mapName = document.getElementById('mapName').value; 
+    const mapName = document.getElementById('mapName').value;
+    const xLength = parseFloat(document.getElementById('xLength').value);
+    const yLength = parseFloat(document.getElementById('yLength').value);
     const markerDict = document.getElementById('markerDict').value;
     const markerSize = parseFloat(document.getElementById('markerSize').value);
     const saveStatusElement = document.getElementById('save_status');
@@ -438,6 +440,8 @@ function saveMap() {
 
     const request = new ROSLIB.ServiceRequest({
         map_name: mapName,
+        x_length: xLength,
+        y_length: yLength,
         marker_dictionary: markerDict,
         marker_size: markerSize,
         map_data: markerArrayMsg
