@@ -16,34 +16,16 @@ let markers = [];
 let agvPose = { x: 0, y: 0, yaw: 0 }; 
 
 // --- DOM ELEMENTS ---
-const connectRosBtn = document.getElementById("connectRosBtn");
 const rosStatus = document.getElementById("rosStatus");
 const cameraFeed = document.getElementById("cameraFeed");
-const rosBridgeUrlInput = document.getElementById("rosBridgeUrl");
 const tabs = document.querySelectorAll(".tab-btn");
 const panes = document.querySelectorAll(".tab-pane");
 
 let ros = null; 
 const MJPEG_PORT = '8080'; 
-const MJPEG_TOPIC = '/camera/image_marked'; 
-
-// --- ROS BRIDGE CONNECTION HANDLERS ---
-if (connectRosBtn) {
-    connectRosBtn.addEventListener("click", () => {
-        if (ros && ros.isConnected) {
-            ros.close();
-            ros = null;
-        } else {
-            const url = rosBridgeUrlInput.value;
-            if (url.trim() === "") {
-                alert("Masukkan URL ROS-bridge!");
-                return;
-            }
-            rosStatus.textContent = "Status: Connecting...";
-            connectRosBridge(url);
-        }
-    });
-}
+const MJPEG_TOPIC = '/camera/image_marked';
+const ROSBRIDGE_PORT = '9090';
+const ROSBRIDGE_URL = `ws://localhost:${ROSBRIDGE_PORT}`;
 
 function connectRosBridge(wsUrl) {
     ros = new ROSLIB.Ros({
@@ -52,7 +34,6 @@ function connectRosBridge(wsUrl) {
 
     ros.on('connection', () => {
         rosStatus.textContent = "Status: Connected ✅";
-        connectRosBtn.textContent = "Disconnect ROS";
         
         // --- ROS-RELATED LOGIC: M-JPEG STREAM ---
         const urlParts = new URL(wsUrl);
@@ -72,7 +53,6 @@ function connectRosBridge(wsUrl) {
 
     ros.on('error', (error) => {
         rosStatus.textContent = "Status: Error ❌. Cek konsol dan URL.";
-        connectRosBtn.textContent = "Connect ROS";
         if (cameraFeed) cameraFeed.src = "#";
         console.error('ROS-bridge Error: ', error);
         if (ros) ros.close();
@@ -81,7 +61,6 @@ function connectRosBridge(wsUrl) {
 
     ros.on('close', () => {
         rosStatus.textContent = "Status: Disconnected";
-        connectRosBtn.textContent = "Connect ROS";
         if (cameraFeed) cameraFeed.src = "#";
         ros = null;
     });
@@ -102,7 +81,7 @@ tabs_nav.forEach(btn => {
     if (btn.dataset.tab === "operation") {
         renderOperationMap();
         if (!ros || !ros.isConnected) {
-            connectRosBridge(rosBridgeUrlInput.value);
+            connectRosBridge(ROSBRIDGE_URL);
         }
     } else {
         renderMap();
@@ -154,21 +133,34 @@ function drawGrid(canvas, context, width, height, scaleX, scaleY) {
 
 function renderMap() {
     if (!ctx || !mapCanvas) return;
+    
+    // --- CRITICAL FIX: Use the globally updated window.markers ---
+    const markersToDraw = window.markers || [];
+    
+    // 1. Get current dimensions/scale based on input fields
     const { width, height, scaleX, scaleY } = getMapScale();
+    
+    // 2. Clear and Draw Grid
     ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
     drawGrid(mapCanvas, ctx, width, height, scaleX, scaleY);
 
-    markers.forEach(m => {
+    // --- Draw Static Markers ---
+    markersToDraw.forEach(m => {
+        // Calculate scaled coordinates
         ctx.fillStyle = "blue";
         const centerX = m.x * scaleX;
+        // Flip Y-axis: Canvas Y = Canvas Height - (Marker Y * Scale Y)
         const centerY = mapCanvas.height - (m.y * scaleY); 
 
+        // Draw Marker Body (Blue Circle)
         ctx.beginPath();
         ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
         ctx.fill();
         
+        // Draw Orientation Line (Red Line)
         ctx.save();
         ctx.translate(centerX, centerY);
+        // Corrected orientation line: Yaw is 0 along X axis, so no compensation needed here
         ctx.rotate(-m.yaw * Math.PI / 180); 
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
@@ -177,20 +169,27 @@ function renderMap() {
         ctx.lineTo(15, 0); 
         ctx.stroke();
         ctx.restore();
-300
+        
+        // DRAW TEXT LABEL
         ctx.fillText(`ID ${m.id} (${m.yaw}°)`, centerX + 8, centerY - 8);
     });
-    console.log(`Map Setup rendered with ${markers.length} markers.`);
+    // The console log will now accurately reflect the number of markers drawn
+    console.log(`Map Setup rendered with ${markersToDraw.length} markers.`);
 }
+
 
 function renderOperationMap() {
     if (!opCtx || !opMapCanvas) return;
+    
+    // --- CRITICAL FIX: Use the globally updated window.markers ---
+    const markersToDraw = window.markers || [];
+
     const { width, height, scaleX, scaleY } = getMapScale();
     opCtx.clearRect(0, 0, opMapCanvas.width, opMapCanvas.height);
     drawGrid(opMapCanvas, opCtx, width, height, scaleX, scaleY);
 
     // Static Markers
-    markers.forEach(m => {
+    markersToDraw.forEach(m => {
         opCtx.fillStyle = "gray";
         const centerX = m.x * scaleX;
         const centerY = opMapCanvas.height - (m.y * scaleY); 
@@ -208,11 +207,13 @@ function renderOperationMap() {
     const centerX = agv_x_cm * scaleX; 
     const centerY = opMapCanvas.height - (agv_y_cm * scaleY); 
 
+    // Draw AGV body
     opCtx.fillStyle = "green";
     opCtx.beginPath();
     opCtx.arc(centerX, centerY, 10, 0, 2 * Math.PI); 
     opCtx.fill();
 
+    // Draw AGV orientation
     opCtx.save();
     opCtx.translate(centerX, centerY);
     opCtx.rotate(-agvPose.yaw * Math.PI / 180); 
@@ -232,11 +233,34 @@ function renderOperationMap() {
 let mapDataForSave = []; 
 
 function updateMarkerTable() {
+    // NOTE: Use the global markers array. If you are using 'window.markers' elsewhere, 
+    // you must ensure consistency. 'markers' globally defined at the top is safer.
+    const markersToRender = window.markers; 
+
     const tbody = document.querySelector("#markerTable tbody");
-    if (!tbody) return;
+    if (!tbody) {
+        console.error("DOM Error: Could not find tbody for #markerTable.");
+        return;
+    }
     
+    // Check if the array is empty before continuing
+    console.log(`--- DEBUG: Rendering Table ---`);
+    console.log(`Markers array size for table rendering: ${markersToRender.length}`);
+
     tbody.innerHTML = "";
-    markers.forEach((m, idx) => {
+    
+    // Ensure the markers array is not empty
+    if (markersToRender.length === 0) {
+        return; 
+    }
+
+    markersToRender.forEach((m, idx) => {
+        // --- CRITICAL CHECK: Ensure m.id, m.x, m.y, and m.yaw exist and are numbers. ---
+        if (m === undefined || isNaN(m.id) || isNaN(m.x) || isNaN(m.y) || isNaN(m.yaw)) {
+            console.error(`Skipping invalid marker data at index ${idx}:`, m);
+            return; 
+        }
+
         const row = document.createElement("tr");
         row.innerHTML = `
             <td><input type="number" value="${m.id}" class="marker-id-input" onchange="updateMarker(${idx},'id',this.value)"></td>
@@ -244,33 +268,48 @@ function updateMarkerTable() {
             <td><input type="number" value="${m.y.toFixed(1)}" step="1" onchange="updateMarker(${idx},'y',this.value)"></td>
             <td><input type="number" value="${m.yaw.toFixed(1)}" step="1" onchange="updateMarker(${idx},'yaw',this.value)"></td>
             <td><button onclick="deleteMarker(${idx})">Hapus</button></td>
-        `;
+        `; 
         tbody.appendChild(row);
     });
 }
 
 window.updateMarker = (idx, key, val) => {
+    // Uses window.markers to update the array
+    if (!window.markers) window.markers = [];
+
     if (key === 'id') {
-        markers[idx][key] = parseInt(val);
+        window.markers[idx][key] = parseInt(val);
     } else {
-        markers[idx][key] = parseFloat(val);
+        window.markers[idx][key] = parseFloat(val);
     }
     renderMap();
 };
 
 window.deleteMarker = (idx) => {
-    markers.splice(idx, 1);
-    // REMOVED: Auto-reindexing is no longer safe since IDs are manual
+    // Uses window.markers to splice the array
+    if (!window.markers) return; 
+    
+    window.markers.splice(idx, 1);
     updateMarkerTable();
     renderMap();
 };
 
 if (document.getElementById("addMarkerBtn")) {
     document.getElementById("addMarkerBtn").addEventListener("click", () => {
-        // FIX: Default ID is now set to 0, or the next logical number, but is meant to be edited
-        const defaultId = markers.length > 0 ? markers[markers.length - 1].id + 1 : 0;
+        // Initialize window.markers if it's undefined (e.g., first run)
+        if (!window.markers) window.markers = [];
+        
+        const markersToUse = window.markers; // Access the array that holds the map data
+        
+        // Find max ID from the active array
+        const maxId = markersToUse.reduce((max, m) => (m.id > max ? m.id : max), -1);
+        const defaultId = maxId + 1;
+        
         const { width, height } = getMapScale();
-        markers.push({ id: defaultId, x: width / 2, y: height / 2, yaw: 0 });
+        
+        // ADD NEW MARKER TO window.markers
+        markersToUse.push({ id: defaultId, x: width / 2, y: height / 2, yaw: 0 }); 
+        
         updateMarkerTable();
         renderMap();
     });
@@ -279,14 +318,22 @@ if (document.getElementById("addMarkerBtn")) {
 // === Canvas Click ===
 if (mapCanvas) {
     mapCanvas.addEventListener("click", e => {
+        // Initialize window.markers if it's undefined
+        if (!window.markers) window.markers = [];
+        
+        const markersToUse = window.markers; // Access the array that holds the map data
+        
         const rect = mapCanvas.getBoundingClientRect();
         const xCanvas = e.clientX - rect.left;
         const yCanvas = e.clientY - rect.top;
 
         const { scaleX, scaleY, height } = getMapScale();
-        const maxId = markers.reduce((max, m) => (m.id > max ? m.id : max), -1);
+        
+        // Find max ID from the active array
+        const maxId = markersToUse.reduce((max, m) => (m.id > max ? m.id : max), -1);
 
-        markers.push({
+        // ADD NEW MARKER TO window.markers
+        markersToUse.push({
             id: maxId + 1,
             x: xCanvas / scaleX,
             y: height - (yCanvas / scaleY), 
@@ -310,8 +357,8 @@ function loadMapData() {
     if (savedData) {
         const mapData = JSON.parse(savedData);
         if (document.getElementById("mapName")) document.getElementById("mapName").value = mapData.name || "ruang_lab";
-        if (document.getElementById("xLength")) document.getElementById("xLength").value = mapData.width || 600.0;
-        if (document.getElementById("yLength")) document.getElementById("yLength").value = mapData.height || 600.0;
+        if (document.getElementById("xLength")) document.getElementById("xLength").value = mapData.xLength || 600.0;
+        if (document.getElementById("yLength")) document.getElementById("yLength").value = mapData.yLength || 600.0;
         if (document.getElementById("markerSize")) document.getElementById("markerSize").value = mapData.markerSize || 5.0;
         if (document.getElementById("markerDict")) document.getElementById("markerDict").value = mapData.dict || "DICT_4X4_50";
         markers = mapData.markers || [];
@@ -512,9 +559,13 @@ function loadMap() {
     });
 }
 
+function deleteMap() {
+
+}
+
 /**
  * Fetches the currently loaded map data (CM numerical values) using the GetMap service,
- * updates the UI configuration fields, and draws the map.
+ * updates the UI configuration fields, and draws the map on both canvases.
  * @param {string} canvasId - The canvas ID to render to ('mapCanvas' or 'opMapCanvas').
  * @param {string} expectedMapName - The map name to use for updating the UI input field.
  */
@@ -522,19 +573,30 @@ function getAndDrawMap(canvasId, expectedMapName = null) {
     
     const processAndRender = (result) => {
         const markersArray = result.map_data.markers;
+        
+        console.log("--- DEBUG: GetMap Service Response ---");
+        console.log("Markers received from ROS:", markersArray); // DEBUG 1
 
-        // --- UX FIX: Populate map configuration fields from GetMap response ---
+        // --- 1. Populate map configuration fields from GetMap response ---
         if (expectedMapName) {
             document.getElementById('mapName').value = expectedMapName;
         }
+        
+        if (result.x_length) {
+            document.getElementById('xLength').value = result.x_length;
+        }
+        if (result.y_length) {
+            document.getElementById('yLength').value = result.y_length;
+        }
+        
         if (result.marker_dictionary) {
             document.getElementById('markerDict').value = result.marker_dictionary;
         }
         if (result.marker_size) {
-            // Marker size is expected to be returned in CM
             document.getElementById('markerSize').value = result.marker_size; 
         }
 
+        // --- 2. Process and Update Markers ---
         const tempMarkers = [];
         markersArray.forEach(marker => {
             const position = marker.pose.pose.position; 
@@ -552,11 +614,11 @@ function getAndDrawMap(canvasId, expectedMapName = null) {
             });
         });
         window.markers = tempMarkers;
-        updateMarkerTable();
         
-        // Ensure both canvases are updated
-        renderMap();
-        renderOperationMap(); 
+        // --- 3. Render on Both Pages (Fulfils the visualization requirement) ---
+        updateMarkerTable();          // Calls the table renderer
+        renderMap();                  // Updates Setup Map canvas
+        renderOperationMap();         // Updates Operation Map canvas
 
         document.getElementById('load_status').innerText = `Map '${expectedMapName || 'Active Map'}' successfully loaded and displayed.`;
         console.log(`Visualization updated with ${markersArray.length} markers.`);
@@ -566,14 +628,15 @@ function getAndDrawMap(canvasId, expectedMapName = null) {
     const getMapClient = new ROSLIB.Service({
         ros: ros,
         name: '/map_database/get_map',
-        serviceType: 'map_database_interfaces/srv/GetMap' // Service returns full map info
+        serviceType: 'map_database_interfaces/srv/GetMap'
     });
 
     getMapClient.callService(new ROSLIB.ServiceRequest({}), function(result) {
-        if (result.success && result.map_data.markers.length > 0) {
-            processAndRender(result); // Pass the entire result object
+        if (result.success && result.map_data && result.map_data.markers && result.map_data.markers.length > 0) {
+            processAndRender(result);
         } else {
-            console.warn('Get Map Warning: No active map data received.');
+            console.warn('Get Map Warning: No active map data received or markers array is empty.');
+            // Clear maps if the load failed
             window.markers = [];
             updateMarkerTable();
             renderMap();
@@ -705,6 +768,8 @@ window.onload = function() {
         opMapCanvas.width = width * PIXEL_PER_CM;
         opMapCanvas.height = height * PIXEL_PER_CM;
     }
-    
+
+    connectRosBridge(ROSBRIDGE_URL);
+
     populateMapList();
 };
