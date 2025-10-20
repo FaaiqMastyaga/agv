@@ -17,6 +17,8 @@ class MapLoader(Node):
         self.current_map = MarkerArray()
         self.marker_dictionary = ""
         self.marker_size = 0.0
+        self.x_length = 0.0
+        self.y_length = 0.0
 
         # Declare parameter
         self.declare_parameter('database_path', '~/agv/agv_data/map_data.db')
@@ -68,7 +70,7 @@ class MapLoader(Node):
             cursor = self.db_connection.cursor()
 
             # Find the map_id by name
-            cursor.execute("SELECT map_id, marker_dictionary, marker_size FROM Maps WHERE map_name = ?", (map_name,))
+            cursor.execute("SELECT map_id, x_length, y_length, marker_dictionary, marker_size FROM Maps WHERE map_name = ?", (map_name,))
             map_metadata = cursor.fetchone()
 
             if not map_metadata:
@@ -106,6 +108,8 @@ class MapLoader(Node):
             self.current_map = new_map_array
             self.marker_dictionary = map_metadata['marker_dictionary']
             self.marker_size = map_metadata['marker_size']
+            self.x_length = map_metadata['x_length']
+            self.y_length = map_metadata['y_length']
 
             map_signal_msg = String()
             map_signal_msg.data = f"MAP_UPDATE_SUCCESS: {map_name}"
@@ -130,6 +134,8 @@ class MapLoader(Node):
             response.map_data = self.current_map
             response.marker_dictionary = self.marker_dictionary
             response.marker_size = self.marker_size
+            response.x_length = self.x_length
+            response.y_length = self.y_length
             response.success = True
             response.message = f"Successfully retrieved map with {len(self.current_map.markers)} markers."
         else:
