@@ -13,7 +13,8 @@ const ctx = mapCanvas ? mapCanvas.getContext("2d") : null;
 const opCtx = opMapCanvas ? opMapCanvas.getContext("2d") : null;
 
 let markers = []; 
-let agvPose = { x: 0, y: 0, yaw: 0 }; 
+let agvPose = { x: 0, y: 0, yaw: 0 };
+let agvPoseHypotheses = [];
 
 // --- DOM ELEMENTS ---
 const rosStatus = document.getElementById("rosStatus");
@@ -181,7 +182,7 @@ function renderMap() {
 function renderOperationMap() {
     if (!opCtx || !opMapCanvas) return;
     
-    // --- CRITICAL FIX: Use the globally updated window.markers ---
+    // Use the globally updated window.markers
     const markersToDraw = window.markers || [];
 
     const { width, height, scaleX, scaleY } = getMapScale();
@@ -200,7 +201,51 @@ function renderOperationMap() {
         opCtx.fillText(`ID ${m.id}`, centerX + 8, centerY - 8);
     });
 
-    // AGV Position (agvPose.x/y is already in CM)
+    const HYPOTHESIS_SIZE = 5;
+    const HYPOTHESIS_COLOR = 'rgba(0, 150, 255, 0.3)';
+    
+    // --- DEBUG LOGGING ---
+    console.log(`DEBUG: Hypothesis count to draw: ${agvPoseHypotheses.length}`);
+    if (agvPoseHypotheses.length > 0) {
+        console.log(`DEBUG: First hypothesis coordinates (cm): X=${agvPoseHypotheses[0].x.toFixed(2)}, Y=${agvPoseHypotheses[0].y.toFixed(2)}`);
+    }
+    // --- END DEBUG LOGGING ---
+
+
+    agvPoseHypotheses.forEach(pose => {
+        const hyp_x_cm = pose.x;
+        const hyp_y_cm = pose.y;
+
+        const centerX = hyp_x_cm * scaleX; 
+        const centerY = opMapCanvas.height - (hyp_y_cm * scaleY); 
+        
+        // Skip drawing if coordinates are invalid or outside a plausible range
+        // This prevents the entire rendering function from crashing or drawing off-screen junk.
+        if (isNaN(centerX) || isNaN(centerY) || centerX < -50 || centerX > opMapCanvas.width + 50 || centerY < -50 || centerY > opMapCanvas.height + 50) {
+            console.warn(`WARNING: Hypothesis skipped (invalid coordinates): X=${hyp_x_cm.toFixed(2)}, Y=${hyp_y_cm.toFixed(2)}`);
+            return; 
+        }
+
+        // Draw Hypothesis Body (Circle)
+        opCtx.fillStyle = HYPOTHESIS_COLOR;
+        opCtx.beginPath();
+        opCtx.arc(centerX, centerY, HYPOTHESIS_SIZE, 0, 2 * Math.PI); 
+        opCtx.fill();
+
+        // Draw Hypothesis Orientation (Short Line)
+        opCtx.save();
+        opCtx.translate(centerX, centerY);
+        opCtx.rotate(-pose.yaw * Math.PI / 180); 
+        opCtx.strokeStyle = HYPOTHESIS_COLOR;
+        opCtx.lineWidth = 1;
+        opCtx.beginPath();
+        opCtx.moveTo(0, 0);
+        opCtx.lineTo(HYPOTHESIS_SIZE + 5, 0); 
+        opCtx.stroke();
+        opCtx.restore();
+    });
+
+    // AGV Position (Final Pose)
     const agv_x_cm = agvPose.x; 
     const agv_y_cm = agvPose.y; 
 
@@ -227,7 +272,6 @@ function renderOperationMap() {
     
     opCtx.fillText(`AGV`, centerX + 12, centerY);
 }
-
 
 // --- Marker Management and Local Map Persistence ---
 let mapDataForSave = []; 
@@ -690,6 +734,14 @@ function subscribeToPoseTopics() {
     agv_pose_listener.subscribe(function(message) {
         const detected_poses_div = document.getElementById('detected_poses');
         if (!detected_poses_div) return;
+
+        agvPoseHypotheses = message.poses.map(pose => ({
+            x: pose.position.x,
+            y: pose.position.y,
+            yaw: quaternionToYaw(pose.orientation),
+        }));
+
+        renderOperationMap();
         
         if (message.poses.length > 0) {
             let all_poses_html = '<h3>All Detected Pose Hypotheses:</h3>';
