@@ -23,19 +23,19 @@
       <div class="left-panel">
         <h2>Setup Map</h2>
 
-        <label>Nama Map:</label>
+        <label>Map Name:</label>
         <input id="mapName" type="text" placeholder="contoh: ruang_lab" value="ruang_lab">
 
-        <label>Ukuran Map (cm):</label>
+        <label>Map Size (cm):</label>
         <div class="row">
           <input id="xLength" type="number" step="1" placeholder="Panjang (X)" value="600.0">
           <input id="yLength" type="number" step="1" placeholder="Lebar (Y)" value="600.0">
         </div>
 
-        <label>Ukuran Marker (cm):</label>
+        <label>Marker Size (cm):</label>
         <input id="markerSize" type="number" step="1" value="5.0">
 
-        <label>Dictionary Marker:</label>
+        <label>Marker Dictionary:</label>
         <select id="markerDict" required>
           <option value="DICT_4X4_50" selected>DICT_4X4_50</option>
           <option value="DICT_4X4_50">DICT_4X4_50</option>
@@ -56,29 +56,30 @@
           <option value="DICT_7X7_1000">DICT_7X7_1000</option>
           <option value="DICT_ARUCO_ORIGINAL">DICT_ARUCO_ORIGINAL</option>
         </select>
-
+        
         <div id="markerListContainer">
-          <h3>List Marker</h3>
+          <h3>Marker List</h3>
           <table id="markerTable">
             <thead>
               <tr>
-                <th>ID</th><th>X (cm)</th><th>Y (cm)</th><th>Orientasi (°)</th><th>Aksi</th>
+                <th>ID</th><th>X (cm)</th><th>Y (cm)</th><th>Orientation (°)</th><th>Action</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
-          <button id="addMarkerBtn">Tambah Marker</button>
+          <button id="addMarkerBtn">Add Marker</button>
+          <button id="saveMapBtn" class="primary">Save Map</button>
         </div>
-
+        
+        <hr>
+        
         <div class="actions-row">
-          <button id="saveMapBtn" class="primary">Simpan Map (Local)</button>
-          
-          <hr>
           <h3>ROS Database Management</h3>
           <select id="load_map_name">
               <option value="" disabled selected>--- Loading Maps ---</option>
           </select>
-          <button onclick="loadMap()">Load Map (ROS)</button>
+          <button onclick="loadMap()">Load Map</button>
+          <button onclick="deleteMap()">Delete Map</button>
           <button onclick="populateMapList()">Refresh List</button> 
           <p id="load_status"></p>
           <p id="save_status"></p>
@@ -88,7 +89,7 @@
       <div class="right-panel">
         <h3>Visualisasi Map Setup</h3>
         <canvas id="mapCanvas" width="600" height="600"></canvas>
-        <p class="hint">Klik pada canvas untuk menandai posisi marker.</p>
+        <p class="hint">Click on canvas to marked the marker position.</p>
       </div>
     </section>
 
@@ -99,8 +100,6 @@
         <h3>ROS Connection</h3>
         <div id="cameraFeedContainer">
             <p id="rosStatus">Status: Disconnected</p>
-            <input id="rosBridgeUrl" type="text" value="ws://localhost:9090" placeholder="ROS-bridge URL">
-            <button id="connectRosBtn" class="primary">Connect ROS</button>
         </div>
 
         <hr>
@@ -109,9 +108,9 @@
         <div id="agv_data">
             <h4>AGV Filtered/Best Pose:</h4>
             <ul id="agvInfo">
-              <li>Posisi X: <span id="posX">-</span></li>
-              <li>Posisi Y: <span id="posY">-</span></li>
-              <li>Orientasi Yaw: <span id="posYaw">-</span></li>
+              <li>Position X: <span id="posX">-</span></li>
+              <li>Position Y: <span id="posY">-</span></li>
+              <li>Orientation Yaw: <span id="posYaw">-</span></li>
             </ul>
         </div>
         
@@ -134,7 +133,7 @@
         <h3>Live Camera Feed</h3>
         <img id="cameraFeed" width="100%" src="#" alt="AGV Camera Stream" style="border: 1px solid #ccc;"/>
         
-        <h3>Visualisasi Navigasi</h3>
+        <h3>Map Visualization</h3>
         <canvas id="opMapCanvas" width="600" height="600"></canvas>
 
         <div id="joystick_container" style="margin-top: 20px; text-align: center;">
