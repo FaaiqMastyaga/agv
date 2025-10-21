@@ -255,7 +255,7 @@ function renderOperationMap() {
     // Draw AGV body
     opCtx.fillStyle = "green";
     opCtx.beginPath();
-    opCtx.arc(centerX, centerY, 10, 0, 2 * Math.PI); 
+    opCtx.arc(centerX, centerY, 5, 0, 2 * Math.PI); 
     opCtx.fill();
 
     // Draw AGV orientation
@@ -697,7 +697,7 @@ function subscribeToAGVPosition() {
     const agvPosTopic = new ROSLIB.Topic({
         ros: ros,
         name: '/agv/pose', 
-        messageType: 'geometry_msgs/PoseStamped' 
+        messageType: 'geometry_msgs/Pose' 
     });
 
     const posXSpan = document.getElementById("posX");
@@ -705,13 +705,13 @@ function subscribeToAGVPosition() {
     const posYawSpan = document.getElementById("posYaw");
 
     agvPosTopic.subscribe(function(message) {
-        const x = message.pose.position.x;
-        const y = message.pose.position.y;
-        const yaw = quaternionToYaw(message.pose.orientation); 
+        const x = message.position.x;
+        const y = message.position.y;
+        const yaw = quaternionToYaw(message.orientation); 
 
         agvPose.x = x;
         agvPose.y = y;
-        agvPose.yaw = yaw;
+        agvPose.yaw = yaw + 90;
 
         if (posXSpan) posXSpan.textContent = x.toFixed(1) + " cm";
         if (posYSpan) posYSpan.textContent = y.toFixed(1) + " cm";

@@ -27,8 +27,22 @@ class ArucoLocalization(Node):
         self.get_logger().info('Aruco Localization node has been started.')
         self.loadMap()
 
+    def normalize_quaternion(self, q):
+        norm = np.linalg.norm(q)
+        if norm == 0:
+            return np.array([0., 0., 0., 1.])
+        return q / norm
+    
+    def average_quaternion(self, quaternions):
+        q_sum = np.sum(quaternions, axis=0)
+        q_avg = self.normalize_quaternion(q_sum)
+        return q_avg
+
     def arucoPoseCallback(self, aruco_pos_msg):
         aruco_marker_array = aruco_pos_msg.markers
+
+        position_hypotheses = []
+        quaternion_hypotheses = []
 
         agv_pose_array = PoseArray()
         agv_pose_array.header.stamp = self.get_clock().now().to_msg() 
@@ -48,22 +62,42 @@ class ArucoLocalization(Node):
                 if marker['id'] == marker_id:
                     agv_world_tf = concatenate_matrices(marker['marker_world_tf'], inverse_matrix(marker_cam_tf))
                     agv_world_pose = agv_world_tf[:3, 3] 
-                    agv_world_angle = quaternion_from_matrix(agv_world_tf)
+                    agv_world_quat = quaternion_from_matrix(agv_world_tf)
                     
+                    position_hypotheses.append(agv_world_pose)
+                    quaternion_hypotheses.append(agv_world_quat)
+
                     agv_pose = Pose()
                     agv_pose.position.x = agv_world_pose[0]
                     agv_pose.position.y = agv_world_pose[1]
                     agv_pose.position.z = agv_world_pose[2]
-                    agv_pose.orientation.x = agv_world_angle[0]
-                    agv_pose.orientation.y = agv_world_angle[1]
-                    agv_pose.orientation.z = agv_world_angle[2]
-                    agv_pose.orientation.w = agv_world_angle[3]
+                    agv_pose.orientation.x = agv_world_quat[0]
+                    agv_pose.orientation.y = agv_world_quat[1]
+                    agv_pose.orientation.z = agv_world_quat[2]
+                    agv_pose.orientation.w = agv_world_quat[3]
 
                     agv_pose_array.poses.append(agv_pose)
         
                     break
 
-        self.agv_pose_hypothesis_pub_.publish(agv_pose_array)        
+        if len(position_hypotheses) > 0:
+            agv_position = np.mean(position_hypotheses, axis=0)
+            agv_quaternion = self.average_quaternion(quaternion_hypotheses)
+
+            final_pose = Pose()
+            final_pose.position.x = agv_position[0]
+            final_pose.position.y = agv_position[1]
+            final_pose.position.z = agv_position[2]
+            final_pose.orientation.x = agv_quaternion[0]
+            final_pose.orientation.y = agv_quaternion[1]
+            final_pose.orientation.z = agv_quaternion[2]
+            final_pose.orientation.w = agv_quaternion[3]
+
+        if (len(agv_pose_array.poses) > 0):
+            self.agv_pose_hypothesis_pub_.publish(agv_pose_array) 
+            self.agv_pose_pub_.publish(final_pose)       
+        else:
+            self.get_logger().warn("No valid markers detected or matched for localization.")
 
     def mapSignalCallback(self, map_signal_msg):
         self.loadMap()
