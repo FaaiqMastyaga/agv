@@ -724,10 +724,10 @@ function subscribeToAGVPosition() {
 function subscribeToPoseTopics() {
     if (!ros) return;
     
-    // 1. /agv/pose_probability (Hypotheses)
+    // 1. /agv/pose_hypothesis (Hypotheses)
     const agv_pose_listener = new ROSLIB.Topic({
         ros: ros,
-        name: '/agv/pose_probability',
+        name: '/agv/pose_hypothesis',
         messageType: 'geometry_msgs/PoseArray'
     });
 
