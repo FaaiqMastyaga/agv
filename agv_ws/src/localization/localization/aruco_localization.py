@@ -21,7 +21,7 @@ class ArucoLocalization(Node):
         self.map_loader_client_ = self.create_client(GetMap, '/map_database/get_map')
 
         # Publisher
-        self.agv_pose_prob_pub_  = self.create_publisher(PoseArray, '/agv/pose_probability', 10)
+        self.agv_pose_hypothesis_pub_  = self.create_publisher(PoseArray, '/agv/pose_hypothesis', 10)
         self.agv_pose_pub_  = self.create_publisher(Pose, '/agv/pose', 10)
         
         self.get_logger().info('Aruco Localization node has been started.')
@@ -63,7 +63,7 @@ class ArucoLocalization(Node):
         
                     break
 
-        self.agv_pose_prob_pub_.publish(agv_pose_array)        
+        self.agv_pose_hypothesis_pub_.publish(agv_pose_array)        
 
     def mapSignalCallback(self, map_signal_msg):
         self.loadMap()
