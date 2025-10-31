@@ -1,6 +1,6 @@
 image_publisher:
   ros__parameters:
-    camera_id: 2
+    camera_device_path: "/dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_6899107F-video-index0"
     image_width: 800 # px
     image_height: 448 # px
     camera_name: "Logitech C920"

@@ -14,7 +14,7 @@ class ImagePublisher(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('camera_id', rclpy.Parameter.Type.INTEGER),
+                ('camera_device_path', rclpy.Parameter.Type.STRING),
                 ('image_width', rclpy.Parameter.Type.INTEGER),
                 ('image_height', rclpy.Parameter.Type.INTEGER),
                 ('camera_name', rclpy.Parameter.Type.STRING),
@@ -31,7 +31,7 @@ class ImagePublisher(Node):
         self.image_height = self.get_parameter('image_height').get_parameter_value().integer_value
         self.camera_name = self.get_parameter('camera_name').get_parameter_value().string_value
         self.camera_model = self.get_parameter('camera_model').get_parameter_value().string_value
-        self.camera_id = self.get_parameter('camera_id').get_parameter_value().integer_value
+        self.camera_device_path = self.get_parameter('camera_device_path').get_parameter_value().string_value
 
         # Read the matrix from parameters
         self.camera_matrix = self.get_parameter('camera_matrix.data').get_parameter_value().double_array_value
@@ -48,16 +48,16 @@ class ImagePublisher(Node):
         self.timer_ = self.create_timer(timer_period, self.timerCallback)
     
         # Initialize video capture
-        self.cap = cv2.VideoCapture(self.camera_id)
+        self.cap = cv2.VideoCapture(self.camera_device_path)
         if not self.cap.isOpened():
-            self.get_logger().error(f"Could not open video capture device at ID {self.camera_id}")
+            self.get_logger().error(f"Could not open video capture device at ID {self.camera_device_path}")
             self.destroy_node() # Or handle this gracefully
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.image_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.image_height)
 
         self.bridge = CvBridge()
         self.get_logger().info('Image Publisher node has been started.')
-        self.get_logger().info(f'Loaded camera: {self.camera_id}, camera name: {self.camera_name}')
+        self.get_logger().info(f'Loaded camera: {self.camera_device_path}, camera name: {self.camera_name}')
         self.get_logger().info(f'Camera Matrix: {self.camera_matrix}')
 
     def timerCallback(self):
