@@ -16,6 +16,16 @@ let markers = [];
 let agvPose = { x: 0, y: 0, yaw: 0 };
 let agvPoseHypotheses = [];
 
+// --- HOVER STATE MANAGEMENT ---
+let hoveredMarkerSetup = null;
+let hoveredMarkerOperation = null;
+const mapTooltip = document.getElementById("mapTooltip"); // Ambil elemen tooltip
+
+// --- ROS3D Globals ---
+let map3dViewer = null;
+let op3dViewer = null;
+let tfClient = null; // Single TF client for all viewers
+
 // --- DOM ELEMENTS ---
 const rosStatus = document.getElementById("rosStatus");
 const cameraFeed = document.getElementById("cameraFeed");
@@ -24,9 +34,9 @@ const panes = document.querySelectorAll(".tab-pane");
 
 let ros = null; 
 const MJPEG_PORT = '8080'; 
-const MJPEG_TOPIC = '/camera/image_marked';
 const ROSBRIDGE_PORT = '9090';
 const ROSBRIDGE_URL = `ws://localhost:${ROSBRIDGE_PORT}`;
+const MJPEG_TOPIC = '/camera/image_marked';
 
 function connectRosBridge(wsUrl) {
     ros = new ROSLIB.Ros({
@@ -41,7 +51,7 @@ function connectRosBridge(wsUrl) {
         const host = urlParts.hostname;
         
         if (cameraFeed) {
-             const mjpegUrl = `http://${host}:${MJPEG_PORT}/stream?topic=${MJPEG_TOPIC}`;
+             const mjpegUrl = `http://localhost:${MJPEG_PORT}/stream?topic=${MJPEG_TOPIC}`;
              cameraFeed.src = mjpegUrl;
              cameraFeed.alt = `Live stream from ${MJPEG_TOPIC}`;
              console.log(`Video feed source set to: ${mjpegUrl}`);
@@ -50,6 +60,7 @@ function connectRosBridge(wsUrl) {
         subscribeToAGVPosition(); 
         subscribeToPoseTopics();  
         populateMapList(); 
+        initRos3D(ros);
     });
 
     ros.on('error', (error) => {
@@ -102,79 +113,100 @@ function quaternionToYaw(q) {
 function getMapScale() {
     const width = parseFloat(document.getElementById("xLength").value) || MAX_MAP_WIDTH_CM;
     const height = parseFloat(document.getElementById("yLength").value) || MAX_MAP_HEIGHT_CM;
+    const markerSize = parseFloat(document.getElementById("markerSize").value) || 5.0; // Ambil markerSize
     
     const scaleX = mapCanvas.width / width;
     const scaleY = mapCanvas.height / height;
-    return { width, height, scaleX, scaleY };
+    return { width, height, scaleX, scaleY, markerSize }; // Sertakan markerSize
 }
 
-function drawGrid(canvas, context, width, height, scaleX, scaleY) {
+function drawAxisLabels(canvas, context, width, height, scaleX, scaleY) { 
     if (!context || !canvas) return;
-    context.strokeStyle = "#e0e0e0";
     context.font = "10px Arial";
     context.fillStyle = "#777";
 
+    // Draw Y-Axis Labels (Vertical Scale)
     for (let j = 0; j <= height; j += 100) { 
         const y = j * scaleY;
-        context.beginPath();
-        context.moveTo(0, y);
-        context.lineTo(canvas.width, y);
-        context.stroke();
-        context.fillText((height - j).toFixed(0) + "cm", 5, y - 5);
+        context.fillText((height - j).toFixed(0) + "cm", 5, y - 5); // Label on the left edge
     }
+    
+    // Draw X-Axis Labels (Horizontal Scale)
     for (let i = 0; i <= width; i += 100) { 
         const x = i * scaleX;
-        context.beginPath();
-        context.moveTo(x, 0);
-        context.lineTo(x, canvas.height);
-        context.stroke();
-        context.fillText(i.toFixed(0) + "cm", x + 5, canvas.height - 5);
+        context.fillText(i.toFixed(0) + "cm", x + 5, canvas.height - 5); // Label on the bottom edge
     }
+    
+    // Add corner labels (Width and Height dimensions)
+    context.fillStyle = "#333";
+    context.font = "12px Arial bold";
+    context.fillText(`X: ${width.toFixed(0)} cm`, canvas.width - 60, canvas.height - 10);
+    context.fillText(`Y: ${height.toFixed(0)} cm`, 5, 15);
 }
 
 function renderMap() {
     if (!ctx || !mapCanvas) return;
     
-    // --- CRITICAL FIX: Use the globally updated window.markers ---
     const markersToDraw = window.markers || [];
+    // Dapatkan markerSize dari getMapScale
+    const { width, height, scaleX, scaleY, markerSize } = getMapScale(); 
     
-    // 1. Get current dimensions/scale based on input fields
-    const { width, height, scaleX, scaleY } = getMapScale();
-    
-    // 2. Clear and Draw Grid
     ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
-    drawGrid(mapCanvas, ctx, width, height, scaleX, scaleY);
+    drawAxisLabels(mapCanvas, ctx, width, height, scaleX, scaleY); // Gunakan fungsi baru
 
-    // --- Draw Static Markers ---
+    // --- Draw Static Markers (Hollow Square with Axis) ---
     markersToDraw.forEach(m => {
-        // Calculate scaled coordinates
-        ctx.fillStyle = "blue";
         const centerX = m.x * scaleX;
-        // Flip Y-axis: Canvas Y = Canvas Height - (Marker Y * Scale Y)
         const centerY = mapCanvas.height - (m.y * scaleY); 
+        
+        // Gunakan markerSize (dalam cm) yang diskalakan ke piksel
+        const MARKER_DRAW_SIZE = markerSize * scaleX; 
+        const AXIS_LENGTH = MARKER_DRAW_SIZE / 2 + 5; // Panjang sumbu orientasi
 
-        // Draw Marker Body (Blue Circle)
+        const LINE_COLOR = "#3498db"; // Blue outline
+        const AXIS_COLOR = "#e74c3c"; // Red for orientation
+
+        // Draw Marker Body (Hollow Square)
+        ctx.strokeStyle = LINE_COLOR; 
+        ctx.lineWidth = 2;
+        ctx.strokeRect(centerX - MARKER_DRAW_SIZE/2, centerY - MARKER_DRAW_SIZE/2, MARKER_DRAW_SIZE, MARKER_DRAW_SIZE);
+
+        // Draw Center Dot
+        ctx.fillStyle = LINE_COLOR;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
+        ctx.arc(centerX, centerY, 2, 0, 2 * Math.PI);
         ctx.fill();
         
-        // Draw Orientation Line (Red Line)
+        // Draw Orientation Axis (Thick Line)
         ctx.save();
         ctx.translate(centerX, centerY);
-        // Corrected orientation line: Yaw is 0 along X axis, so no compensation needed here
         ctx.rotate(-m.yaw * Math.PI / 180); 
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = AXIS_COLOR; 
+        ctx.lineWidth = 3; 
+        
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(15, 0); 
+        // Sumbu dimulai dari tengah
+        ctx.moveTo(0, 0); 
+        ctx.lineTo(AXIS_LENGTH, 0); 
         ctx.stroke();
+        
+        // Draw simple arrowhead (small triangle)
+        ctx.fillStyle = AXIS_COLOR;
+        ctx.beginPath();
+        ctx.moveTo(AXIS_LENGTH, 0);
+        ctx.lineTo(AXIS_LENGTH - 5, 3);
+        ctx.lineTo(AXIS_LENGTH - 5, -3);
+        ctx.closePath();
+        ctx.fill();
+        
         ctx.restore();
         
-        // DRAW TEXT LABEL
-        ctx.fillText(`ID ${m.id} (${m.yaw}°)`, centerX + 8, centerY - 8);
+        // DRAW TEXT LABEL (Hanya ID yang selalu muncul)
+        ctx.fillStyle = "#333";
+        ctx.fillText(`ID ${m.id}`, centerX + AXIS_LENGTH + 2, centerY - 5);
+        
     });
-    // The console log will now accurately reflect the number of markers drawn
+    // Kebutuhan hover diurus oleh setupCanvasHover()
     console.log(`Map Setup rendered with ${markersToDraw.length} markers.`);
 }
 
@@ -182,36 +214,36 @@ function renderMap() {
 function renderOperationMap() {
     if (!opCtx || !opMapCanvas) return;
     
-    // Use the globally updated window.markers
     const markersToDraw = window.markers || [];
-
-    const { width, height, scaleX, scaleY } = getMapScale();
+    // Dapatkan markerSize dari getMapScale
+    const { width, height, scaleX, scaleY, markerSize } = getMapScale(); 
     opCtx.clearRect(0, 0, opMapCanvas.width, opMapCanvas.height);
-    drawGrid(opMapCanvas, opCtx, width, height, scaleX, scaleY);
+    drawAxisLabels(opMapCanvas, opCtx, width, height, scaleX, scaleY); // Gunakan fungsi baru
 
-    // Static Markers
+    // Static Markers (Using a lighter, scaled hollow square)
     markersToDraw.forEach(m => {
-        opCtx.fillStyle = "gray";
         const centerX = m.x * scaleX;
         const centerY = opMapCanvas.height - (m.y * scaleY); 
         
-        opCtx.beginPath();
-        opCtx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
-        opCtx.fill();
-        opCtx.fillText(`ID ${m.id}`, centerX + 8, centerY - 8);
+        // Gunakan 80% dari ukuran marker sebenarnya untuk representasi visual yang lebih kecil di Operation Map
+        const MARKER_DRAW_SIZE = markerSize * scaleX * 0.8; 
+        const AXIS_LENGTH = MARKER_DRAW_SIZE / 2 + 5;
+        
+        // Draw Marker Body (Lighter Hollow Square)
+        opCtx.strokeStyle = "#95a5a6"; // Gray outline
+        opCtx.lineWidth = 1;
+        opCtx.strokeRect(centerX - MARKER_DRAW_SIZE/2, centerY - MARKER_DRAW_SIZE/2, MARKER_DRAW_SIZE, MARKER_DRAW_SIZE);
+        
+        opCtx.fillStyle = "#333";
+        // DRAW TEXT LABEL (Hanya ID yang selalu muncul)
+        opCtx.fillText(`ID ${m.id}`, centerX + AXIS_LENGTH + 2, centerY - 5);
     });
 
+    // --- Hypothesis Visualization (Small Cross/X remains) ---
     const HYPOTHESIS_SIZE = 5;
-    const HYPOTHESIS_COLOR = 'rgba(0, 150, 255, 0.3)';
+    const HYPOTHESIS_COLOR = 'rgba(0, 150, 255, 0.5)';
+    const HYPOTHESIS_ORIENTATION_LENGTH = 10;
     
-    // --- DEBUG LOGGING ---
-    console.log(`DEBUG: Hypothesis count to draw: ${agvPoseHypotheses.length}`);
-    if (agvPoseHypotheses.length > 0) {
-        console.log(`DEBUG: First hypothesis coordinates (cm): X=${agvPoseHypotheses[0].x.toFixed(2)}, Y=${agvPoseHypotheses[0].y.toFixed(2)}`);
-    }
-    // --- END DEBUG LOGGING ---
-
-
     agvPoseHypotheses.forEach(pose => {
         const hyp_x_cm = pose.x;
         const hyp_y_cm = pose.y;
@@ -219,61 +251,178 @@ function renderOperationMap() {
         const centerX = hyp_x_cm * scaleX; 
         const centerY = opMapCanvas.height - (hyp_y_cm * scaleY); 
         
-        // Skip drawing if coordinates are invalid or outside a plausible range
-        // This prevents the entire rendering function from crashing or drawing off-screen junk.
         if (isNaN(centerX) || isNaN(centerY) || centerX < -50 || centerX > opMapCanvas.width + 50 || centerY < -50 || centerY > opMapCanvas.height + 50) {
             console.warn(`WARNING: Hypothesis skipped (invalid coordinates): X=${hyp_x_cm.toFixed(2)}, Y=${hyp_y_cm.toFixed(2)}`);
             return; 
         }
 
-        // Draw Hypothesis Body (Circle)
-        opCtx.fillStyle = HYPOTHESIS_COLOR;
+        // Draw Hypothesis Body (Small Cross/X)
+        opCtx.strokeStyle = HYPOTHESIS_COLOR;
+        opCtx.lineWidth = 1;
+        
         opCtx.beginPath();
-        opCtx.arc(centerX, centerY, HYPOTHESIS_SIZE, 0, 2 * Math.PI); 
-        opCtx.fill();
-
+        opCtx.moveTo(centerX - 3, centerY - 3);
+        opCtx.lineTo(centerX + 3, centerY + 3);
+        opCtx.moveTo(centerX + 3, centerY - 3);
+        opCtx.lineTo(centerX - 3, centerY + 3);
+        opCtx.stroke();
+        
         // Draw Hypothesis Orientation (Short Line)
         opCtx.save();
         opCtx.translate(centerX, centerY);
         opCtx.rotate(-pose.yaw * Math.PI / 180); 
-        opCtx.strokeStyle = HYPOTHESIS_COLOR;
-        opCtx.lineWidth = 1;
         opCtx.beginPath();
         opCtx.moveTo(0, 0);
-        opCtx.lineTo(HYPOTHESIS_SIZE + 5, 0); 
+        opCtx.lineTo(HYPOTHESIS_ORIENTATION_LENGTH, 0); 
         opCtx.stroke();
         opCtx.restore();
     });
 
-    // AGV Position (Final Pose)
+    // --- AGV Position (Final Pose - Arrowhead) ---
+    const AGV_BODY_LENGTH = 25; 
+    const AGV_BODY_WIDTH = 15;
+    
     const agv_x_cm = agvPose.x; 
     const agv_y_cm = agvPose.y; 
 
     const centerX = agv_x_cm * scaleX; 
     const centerY = opMapCanvas.height - (agv_y_cm * scaleY); 
 
-    // Draw AGV body
-    opCtx.fillStyle = "green";
-    opCtx.beginPath();
-    opCtx.arc(centerX, centerY, 5, 0, 2 * Math.PI); 
-    opCtx.fill();
-
-    // Draw AGV orientation
+    // Draw AGV body (Arrowhead/Triangle)
     opCtx.save();
     opCtx.translate(centerX, centerY);
     opCtx.rotate(-agvPose.yaw * Math.PI / 180); 
-    opCtx.strokeStyle = "darkgreen";
-    opCtx.lineWidth = 3;
+
+    opCtx.fillStyle = "#2ecc71"; // Primary green
+    opCtx.strokeStyle = "#27ae60";
+    opCtx.lineWidth = 1;
+    
     opCtx.beginPath();
-    opCtx.moveTo(0, 0);
-    opCtx.lineTo(20, 0); 
+    opCtx.moveTo(AGV_BODY_LENGTH, 0); // Point
+    opCtx.lineTo(-AGV_BODY_LENGTH/3, -AGV_BODY_WIDTH / 2);
+    opCtx.lineTo(-AGV_BODY_LENGTH/3, AGV_BODY_WIDTH / 2);
+    opCtx.closePath();
+    opCtx.fill();
     opCtx.stroke();
+    
     opCtx.restore();
     
+    opCtx.fillStyle = "#333";
     opCtx.fillText(`AGV`, centerX + 12, centerY);
 }
 
-// --- Marker Management and Local Map Persistence ---
+// Helper to calculate Euclidean distance (for collision check)
+function getDistance(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+}
+
+// Universal function to set up hover detection on Canvas
+function setupCanvasHover(canvas, renderFunction, mapType) {
+    if (!canvas || !mapTooltip) return;
+
+    // targetX and targetY are now the screen coordinates of the marker center
+    const setHoveredMarker = (marker, targetX, targetY) => { 
+        let currentHoveredMarker = (mapType === 'setup') ? hoveredMarkerSetup : hoveredMarkerOperation;
+        
+        // Cek apakah ada perubahan status hover
+        if (marker !== currentHoveredMarker) {
+            if (mapType === 'setup') {
+                hoveredMarkerSetup = marker;
+            } else {
+                hoveredMarkerOperation = marker;
+            }
+            renderFunction();
+        }
+
+        // Tampilkan atau sembunyikan tooltip
+        if (marker) {
+            const tooltipHTML = `
+                <strong>ID: ${marker.id}</strong><br>
+                X: ${marker.x.toFixed(2)} cm<br>
+                Y: ${marker.y.toFixed(2)} cm<br>
+                Yaw: ${marker.yaw.toFixed(2)} °
+            `;
+            mapTooltip.innerHTML = tooltipHTML;
+            mapTooltip.style.display = 'block';
+
+            // Posisikan tooltip relatif terhadap viewport (menggunakan targetX/Y Marker)
+            const offsetX = 10; // Offset dari pusat Marker
+            const offsetY = 10;
+            
+            // Posisi awal: Geser ke kanan bawah dari pusat marker
+            let tooltipX = targetX + offsetX; 
+            let tooltipY = targetY + offsetY;
+            
+            // Penyesuaian agar tidak keluar dari kanan layar (Edge check)
+            if (tooltipX + mapTooltip.offsetWidth > window.innerWidth - 10) {
+                // Posisikan ke kiri marker
+                tooltipX = targetX - mapTooltip.offsetWidth - offsetX;
+            }
+            // Penyesuaian agar tidak keluar dari bawah layar (Edge check)
+            if (tooltipY + mapTooltip.offsetHeight > window.innerHeight - 10) {
+                 // Posisikan ke atas marker
+                 tooltipY = targetY - mapTooltip.offsetHeight - offsetY; 
+            }
+
+            mapTooltip.style.left = `${tooltipX}px`;
+            mapTooltip.style.top = `${tooltipY}px`;
+            
+            canvas.style.cursor = 'pointer';
+
+        } else {
+            mapTooltip.style.display = 'none';
+            canvas.style.cursor = 'default';
+        }
+    };
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const xCanvas = e.clientX - rect.left;
+        const yCanvas = e.clientY - rect.top;
+
+        const { scaleX, scaleY, height, markerSize } = getMapScale();
+        
+        // Convert mouse position from pixels to map coordinates (cm)
+        const x_cm = xCanvas / scaleX;
+        const y_cm = height - (yCanvas / scaleY);
+        
+        // Radius deteksi dalam cm (Radius sekitar 75% dari sisi marker)
+        const detectionRadiusCm = markerSize * 0.75; 
+
+        let detectedMarker = null;
+
+        // Check if cursor is over any marker
+        for (const m of window.markers) {
+            const distance = getDistance(
+                { x: m.x, y: m.y }, 
+                { x: x_cm, y: y_cm }
+            );
+
+            if (distance <= detectionRadiusCm) {
+                detectedMarker = m;
+
+                // Hitung posisi Marker di viewport (screen)
+                const markerXCanvas = m.x * scaleX; 
+                const markerYCanvas = canvas.height - (m.y * scaleY);
+                const markerXViewport = markerXCanvas + rect.left;
+                const markerYViewport = markerYCanvas + rect.top;
+
+                setHoveredMarker(detectedMarker, markerXViewport, markerYViewport);
+                return; // Stop checking once found
+            }
+        }
+        
+        // Jika tidak ada marker yang terdeteksi, sembunyikan tooltip
+        setHoveredMarker(null, e.clientX, e.clientY);
+    });
+    
+    canvas.addEventListener('mouseout', () => {
+        setHoveredMarker(null, 0, 0); // Hide tooltip on mouse exit
+    });
+}
+
+
+// --- Marker Management and Local Map Persistence (Code remains the same) ---
 let mapDataForSave = []; 
 
 function updateMarkerTable() {
@@ -311,7 +460,7 @@ function updateMarkerTable() {
             <td><input type="number" value="${m.x.toFixed(1)}" step="1" onchange="updateMarker(${idx},'x',this.value)"></td>
             <td><input type="number" value="${m.y.toFixed(1)}" step="1" onchange="updateMarker(${idx},'y',this.value)"></td>
             <td><input type="number" value="${m.yaw.toFixed(1)}" step="1" onchange="updateMarker(${idx},'yaw',this.value)"></td>
-            <td><button onclick="deleteMarker(${idx})">Hapus</button></td>
+            <td><button onclick="deleteMarker(${idx})">Delete</button></td>
         `; 
         tbody.appendChild(row);
     });
@@ -354,35 +503,6 @@ if (document.getElementById("addMarkerBtn")) {
         // ADD NEW MARKER TO window.markers
         markersToUse.push({ id: defaultId, x: width / 2, y: height / 2, yaw: 0 }); 
         
-        updateMarkerTable();
-        renderMap();
-    });
-}
-
-// === Canvas Click ===
-if (mapCanvas) {
-    mapCanvas.addEventListener("click", e => {
-        // Initialize window.markers if it's undefined
-        if (!window.markers) window.markers = [];
-        
-        const markersToUse = window.markers; // Access the array that holds the map data
-        
-        const rect = mapCanvas.getBoundingClientRect();
-        const xCanvas = e.clientX - rect.left;
-        const yCanvas = e.clientY - rect.top;
-
-        const { scaleX, scaleY, height } = getMapScale();
-        
-        // Find max ID from the active array
-        const maxId = markersToUse.reduce((max, m) => (m.id > max ? m.id : max), -1);
-
-        // ADD NEW MARKER TO window.markers
-        markersToUse.push({
-            id: maxId + 1,
-            x: xCanvas / scaleX,
-            y: height - (yCanvas / scaleY), 
-            yaw: 0
-        });
         updateMarkerTable();
         renderMap();
     });
@@ -450,10 +570,9 @@ function populateMapList() {
     if (!ros || !ros.isConnected) return;
 
     const mapSelect = document.getElementById('load_map_name');
-    const loadStatusElement = document.getElementById('load_status');
     
     mapSelect.innerHTML = '<option value="" disabled selected>Loading Maps...</option>';
-    loadStatusElement.innerText = 'Fetching map list...';
+    showInfoToast('Fetching map list from database...', 'Loading');
 
     const getAllMapsClient = new ROSLIB.Service({
         ros: ros,
@@ -474,45 +593,39 @@ function populateMapList() {
                 mapSelect.appendChild(option);
             });
 
-            loadStatusElement.innerText = `Found ${result.map_names.length} maps.`;
+            showSuccessToast(`Found ${result.map_names.length} map(s) in database`, 'Maps Loaded');
         } else {
             mapSelect.innerHTML = '<option value="" disabled selected>--- No Maps Found ---</option>';
-            loadStatusElement.innerText = `No maps found or service failed: ${result.message || 'Unknown error'}`;
+            showWarningToast(result.message || 'No maps available in database', 'No Maps Found');
         }
     }, function(error) {
         mapSelect.innerHTML = '<option value="" disabled selected>--- Error Fetching Maps ---</option>';
-        loadStatusElement.innerText = `Service communication error: ${error}`;
+        showErrorToast(`Database communication error: ${error}`, 'Connection Failed');
         console.error('Get All Maps Comm Error:', error);
     });
 }
 
 function saveMap() {
     if (!ros || !ros.isConnected) {
-        alert("Must be connected to ROS to save the map to the database.");
+        showErrorToast('Please connect to ROS bridge before saving', 'Not Connected');
         return;
     }
     
-    // 1. Update the map visualization data from the HTML table (populates window.mapDataForSave)
-    // This must be called immediately before validation.
-    updateMapVisualization(); 
+    updateMapVisualization();
 
-    // --- Gather Required Inputs ---
     const mapName = document.getElementById('mapName').value;
     const xLength = parseFloat(document.getElementById('xLength').value);
     const yLength = parseFloat(document.getElementById('yLength').value);
     const markerDict = document.getElementById('markerDict').value;
     const markerSize = parseFloat(document.getElementById('markerSize').value);
-    const saveStatusElement = document.getElementById('save_status');
     
-    // 2. Validation Check
     if (!mapName || !markerDict || isNaN(markerSize)) {
-        saveStatusElement.innerText = 'Error: Please ensure Map Name, Dictionary, and Marker Size are filled correctly.';
+        showErrorToast('Please ensure Map Name, Dictionary, and Marker Size are filled correctly', 'Validation Error');
         return;
     }
 
-    saveStatusElement.innerText = 'Saving map...';
+    showInfoToast(`Saving map '${mapName}' to database...`, 'Saving');
 
-    // 3. Assemble the MarkerArray message (populated by updateMapVisualization)
     const markerArrayMsg = new ROSLIB.Message({
         markers: window.mapDataForSave.map(localMarker => {
             return {
@@ -522,7 +635,6 @@ function saveMap() {
         })
     });
 
-    // 4. Set up Service Client and Request
     const saveMapClient = new ROSLIB.Service({
         ros: ros,
         name: '/map_database/save_map',
@@ -538,19 +650,16 @@ function saveMap() {
         map_data: markerArrayMsg
     });
 
-    // 5. Call Service and Handle Response
     saveMapClient.callService(request, function(result) {
         if (result.success) {
-            saveStatusElement.innerText = `Success! Map '${mapName}' saved. ID: ${result.new_map_id}.`;
-            // Refresh map list for the dropdown
+            showSuccessToast(`Map '${mapName}' saved successfully with ID: ${result.new_map_id}`, 'Map Saved');
             populateMapList(); 
         } else {
-            saveStatusElement.innerText = `Failed to save map: ${result.message}`;
-            // IMPORTANT: If your Python backend returns a clear error message, it will be displayed here.
+            showErrorToast(result.message, 'Save Failed');
             console.error('Save Map Error (Backend):', result.message);
         }
     }, function(error) {
-        saveStatusElement.innerText = `Service communication error: ${error}`;
+        showErrorToast(`Database communication error: ${error}`, 'Connection Failed');
         console.error('Save Map Comm Error (Frontend):', error);
     });
 }
@@ -561,50 +670,82 @@ function saveMap() {
  */
 function loadMap() {
     if (!ros || !ros.isConnected) {
-        alert("Must be connected to ROS to load the map from the database.");
+        showErrorToast('Please connect to ROS bridge before loading', 'Not Connected');
         return;
     }
     const mapName = document.getElementById('load_map_name').value;
-    const loadStatusElement = document.getElementById('load_status');
 
     if (!mapName) {
-        loadStatusElement.innerText = 'Error: Please select a map name.';
+        showWarningToast('Please select a map from the dropdown', 'No Map Selected');
         return;
     }
 
-    loadStatusElement.innerText = `Requesting map '${mapName}'...`; // Status before first call
+    showInfoToast(`Loading map '${mapName}' from database...`, 'Loading');
 
     const loadMapClient = new ROSLIB.Service({
         ros: ros,
         name: '/map_database/load_map',
-        serviceType: 'map_database_interfaces/srv/LoadMap' // Service returns only success/message
+        serviceType: 'map_database_interfaces/srv/LoadMap'
     });
 
     const request = new ROSLIB.ServiceRequest({
         map_name: mapName
     });
 
-    // --- 1. Call LoadMap Service (Activates map on backend) ---
     loadMapClient.callService(request, function(result) {
         if (result.success) {
-            loadStatusElement.innerText = `Map '${mapName}' loaded on backend. Fetching data...`;
-            
-            // --- 2. SUCCESS: Immediately call GetMap to fetch detailed data and update UI ---
-            // Pass the mapName to ensure we update the UI's map name input field
+            showInfoToast(`Map '${mapName}' activated. Fetching details...`, 'Loading');
             getAndDrawMap('mapCanvas', mapName); 
-            
         } else {
-            loadStatusElement.innerText = `Failed to load map on backend: ${result.message}`;
+            showErrorToast(result.message, 'Load Failed');
             console.error('Load Map Error:', result.message);
         }
     }, function(error) {
-        loadStatusElement.innerText = `Service communication error: ${error}`;
+        showErrorToast(`Database communication error: ${error}`, 'Connection Failed');
         console.error('Load Map Comm Error:', error);
     });
 }
 
 function deleteMap() {
+    if (!ros || !ros.isConnected) {
+        showErrorToast('Please connect to ROS bridge before deleting', 'Not Connected');
+        return;
+    }
+    const mapName = document.getElementById('load_map_name').value;
 
+    if (!mapName) {
+        showWarningToast('Please select a map to delete', 'No Map Selected');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete map '${mapName}'? This action cannot be undone.`)) {
+        return;
+    }
+
+    showInfoToast(`Deleting map '${mapName}'...`, 'Deleting');
+
+    const deleteMapClient = new ROSLIB.Service({
+        ros: ros,
+        name: '/map_database/delete_map',
+        serviceType: 'map_database_interfaces/srv/DeleteMap' 
+    });
+
+    const request = new ROSLIB.ServiceRequest({
+        map_name: mapName
+    });
+
+    deleteMapClient.callService(request, function(result) {
+        if (result.success) {
+            showSuccessToast(`Map '${mapName}' successfully deleted`, 'Map Deleted');
+            populateMapList(); 
+        } else {
+            showErrorToast(result.message, 'Delete Failed');
+            console.error('Delete Map Error:', result.message);
+        }
+    }, function(error) {
+        showErrorToast(`Database communication error: ${error}`, 'Connection Failed');
+        console.error('Delete Map Comm Error:', error);
+    });
 }
 
 /**
@@ -664,7 +805,7 @@ function getAndDrawMap(canvasId, expectedMapName = null) {
         renderMap();                  // Updates Setup Map canvas
         renderOperationMap();         // Updates Operation Map canvas
 
-        document.getElementById('load_status').innerText = `Map '${expectedMapName || 'Active Map'}' successfully loaded and displayed.`;
+        showSuccessToast(`Map '${expectedMapName || 'Active Map'}' loaded with ${markersArray.length} marker(s)`, 'Map Loaded');
         console.log(`Visualization updated with ${markersArray.length} markers.`);
     };
     
@@ -685,7 +826,7 @@ function getAndDrawMap(canvasId, expectedMapName = null) {
             updateMarkerTable();
             renderMap();
             renderOperationMap();
-            document.getElementById('load_status').innerText = `Error: Active map has no markers.`;
+            showWarningToast('The loaded map contains no markers', 'Empty Map');
         }
     });
 }
@@ -815,13 +956,85 @@ window.onload = function() {
         mapCanvas.width = width * PIXEL_PER_CM;
         mapCanvas.height = height * PIXEL_PER_CM;
         renderMap();
+        setupCanvasHover(mapCanvas, renderMap, 'setup'); // Setup hover for Setup Map
+        
+        // --- NEW LISTENERS FOR CONFIGURATION CHANGES ---
+        const inputsToMonitor = ["xLength", "yLength", "markerSize"];
+        inputsToMonitor.forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                // Use 'input' event for immediate visual feedback when typing/dragging number controls
+                input.addEventListener("input", renderMap);
+                // Also add 'change' event in case 'input' doesn't fire immediately
+                input.addEventListener("change", renderMap); 
+            }
+        });
+        // --- END NEW LISTENERS ---
     }
     if (opMapCanvas) {
         opMapCanvas.width = width * PIXEL_PER_CM;
         opMapCanvas.height = height * PIXEL_PER_CM;
+        setupCanvasHover(opMapCanvas, renderOperationMap, 'operation'); // Setup hover for Operation Map
     }
 
     connectRosBridge(ROSBRIDGE_URL);
 
     populateMapList();
 };
+
+function initRos3D(rosInstance) {
+    const viewerDiv = document.getElementById('ros3d_viewer');
+    if (!viewerDiv) {
+        console.warn('ROS3D Viewer DIV not found. Skipping 3D initialization.');
+        return;
+    }
+    
+    // 1. Initialize the 3D Viewer
+    // NOTE: Dimensions are fixed to 600x400 as set in HTML
+    var ros3d_viewer = new ROS3D.Viewer({
+        divID: 'ros3d_viewer',
+        width: viewerDiv.offsetWidth, 
+        height: viewerDiv.offsetHeight,
+        cameraPosition : {x: 15.0, y: 15.0, z: 15.0}, // Zoom way out (15 meters)
+        background: '#333333',
+        antialias: true,
+    });
+    
+    // 2. Add the TFClient to listen for /tf
+    var tfClient = new ROSLIB.TFClient({
+        ros: rosInstance,
+        angularThres: 0.01,
+        transThres: 0.01,
+        rate: 10.0,
+        fixedFrame: 'world' // CRITICAL: Must match the world frame used in your Python code
+    });
+
+    // 3. Add a visualization stream for your Aruco Markers (MarkerArray)
+    markerArrayClient = new ROS3D.MarkerArrayClient({
+        ros: rosInstance,
+        tfClient: tfClient,
+        topic: '/aruco/visual', // Topic from your Python code
+        rootObject: ros3d_viewer.scene,
+        // Optional: Use a large lifetime so markers stay visible until the map is reloaded
+        lifetime: 0 
+    });
+    
+    // 4. Add a visualization stream for the final AGV Pose (as an Arrow)
+    // NOTE: We don't need a separate PoseClient for /agv/pose_hypothesis unless we want
+    // to visualize the individual hypothesis poses differently than the markers.
+// 5. Visualize the AGV/Camera frame using an Axis object
+    new ROS3D.Arrow({
+        ros : rosInstance,
+        tfClient : tfClient,
+        rootObject : ros3d_viewer.scene,
+        frameID : 'camera', // Attach the arrow to the 'camera' frame
+        // Arrow geometry settings:
+        length: 0.2, // 20cm
+        headLength: 0.05,
+        shaftDiameter: 0.02,
+        headDiameter: 0.04,
+        color: 0xFF0000 // Red arrow to represent AGV/Camera
+    });
+    
+    console.log('ROS3D Viewer initialized and subscribing to /tf and /aruco/visual.');
+}
