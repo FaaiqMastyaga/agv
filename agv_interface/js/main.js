@@ -111,60 +111,37 @@ function quaternionToYaw(q) {
 
 // --- RENDERING FUNCTIONS (Canvas) ---
 function getMapScale() {
-    const width = parseFloat(document.getElementById("xLength").value) || MAX_MAP_WIDTH_CM;
-    const height = parseFloat(document.getElementById("yLength").value) || MAX_MAP_HEIGHT_CM;
-    const markerSize = parseFloat(document.getElementById("markerSize").value) || 5.0; // Ambil markerSize
-    
-    const scaleX = mapCanvas.width / width;
-    const scaleY = mapCanvas.height / height;
-    return { width, height, scaleX, scaleY, markerSize }; // Sertakan markerSize
-}
-
-function drawAxisLabels(canvas, context, width, height, scaleX, scaleY) { 
-    if (!context || !canvas) return;
-    context.font = "10px Arial";
-    context.fillStyle = "#777";
-
-    // Draw Y-Axis Labels (Vertical Scale)
-    for (let j = 0; j <= height; j += 100) { 
-        const y = j * scaleY;
-        context.fillText((height - j).toFixed(0) + "cm", 5, y - 5); // Label on the left edge
-    }
-    
-    // Draw X-Axis Labels (Horizontal Scale)
-    for (let i = 0; i <= width; i += 100) { 
-        const x = i * scaleX;
-        context.fillText(i.toFixed(0) + "cm", x + 5, canvas.height - 5); // Label on the bottom edge
-    }
-    
-    // Add corner labels (Width and Height dimensions)
-    context.fillStyle = "#333";
-    context.font = "12px Arial bold";
-    context.fillText(`X: ${width.toFixed(0)} cm`, canvas.width - 60, canvas.height - 10);
-    context.fillText(`Y: ${height.toFixed(0)} cm`, 5, 15);
+    // Use auto-calculated bounds instead of user input
+    return getMapScaleAuto();
 }
 
 function renderMap() {
     if (!ctx || !mapCanvas) return;
     
     const markersToDraw = window.markers || [];
-    // Dapatkan markerSize dari getMapScale
-    const { width, height, scaleX, scaleY, markerSize } = getMapScale(); 
+    
+    // Update dimensions based on markers
+    updateMapDimensions();
+    
+    // Get auto-calculated scale and bounds
+    const { width, height, scaleX, scaleY, markerSize, bounds } = getMapScaleAuto();
     
     ctx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
-    drawAxisLabels(mapCanvas, ctx, width, height, scaleX, scaleY); // Gunakan fungsi baru
-
-    // --- Draw Static Markers (Hollow Square with Axis) ---
+    
+    // Draw grid and coordinate labels on borders
+    drawGridAndLabels(mapCanvas, ctx, bounds, scaleX, scaleY);
+    
+    // Draw markers with coordinate transformation
     markersToDraw.forEach(m => {
-        const centerX = m.x * scaleX;
-        const centerY = mapCanvas.height - (m.y * scaleY); 
+        const { x: centerX, y: centerY } = worldToCanvas(
+            m.x, m.y, bounds, scaleX, scaleY, mapCanvas.height
+        );
         
-        // Gunakan markerSize (dalam cm) yang diskalakan ke piksel
-        const MARKER_DRAW_SIZE = markerSize * scaleX; 
-        const AXIS_LENGTH = MARKER_DRAW_SIZE / 2 + 5; // Panjang sumbu orientasi
+        const MARKER_DRAW_SIZE = markerSize * scaleX;
+        const AXIS_LENGTH = MARKER_DRAW_SIZE / 2 + 5;
 
-        const LINE_COLOR = "#3498db"; // Blue outline
-        const AXIS_COLOR = "#e74c3c"; // Red for orientation
+        const LINE_COLOR = "#3498db";
+        const AXIS_COLOR = "#e74c3c";
 
         // Draw Marker Body (Hollow Square)
         ctx.strokeStyle = LINE_COLOR; 
@@ -177,7 +154,7 @@ function renderMap() {
         ctx.arc(centerX, centerY, 2, 0, 2 * Math.PI);
         ctx.fill();
         
-        // Draw Orientation Axis (Thick Line)
+        // Draw Orientation Axis
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(-m.yaw * Math.PI / 180); 
@@ -185,12 +162,11 @@ function renderMap() {
         ctx.lineWidth = 3; 
         
         ctx.beginPath();
-        // Sumbu dimulai dari tengah
         ctx.moveTo(0, 0); 
         ctx.lineTo(AXIS_LENGTH, 0); 
         ctx.stroke();
         
-        // Draw simple arrowhead (small triangle)
+        // Draw arrowhead
         ctx.fillStyle = AXIS_COLOR;
         ctx.beginPath();
         ctx.moveTo(AXIS_LENGTH, 0);
@@ -201,65 +177,58 @@ function renderMap() {
         
         ctx.restore();
         
-        // DRAW TEXT LABEL (Hanya ID yang selalu muncul)
+        // Draw ID Label
         ctx.fillStyle = "#333";
-        ctx.fillText(`ID ${m.id}`, centerX + AXIS_LENGTH + 2, centerY - 5);
-        
+        ctx.font = "12px Arial";
+        ctx.fillText(`ID ${m.id}`, centerX + AXIS_LENGTH + 5, centerY - 5);
     });
-    // Kebutuhan hover diurus oleh setupCanvasHover()
-    console.log(`Map Setup rendered with ${markersToDraw.length} markers.`);
+    
+    console.log(`Map rendered with ${markersToDraw.length} markers`);
 }
-
 
 function renderOperationMap() {
     if (!opCtx || !opMapCanvas) return;
     
     const markersToDraw = window.markers || [];
-    // Dapatkan markerSize dari getMapScale
-    const { width, height, scaleX, scaleY, markerSize } = getMapScale(); 
+    const { width, height, scaleX, scaleY, markerSize, bounds } = getMapScaleAuto();
+    
     opCtx.clearRect(0, 0, opMapCanvas.width, opMapCanvas.height);
-    drawAxisLabels(opMapCanvas, opCtx, width, height, scaleX, scaleY); // Gunakan fungsi baru
+    drawAxisLabelsWithBounds(opMapCanvas, opCtx, bounds, scaleX, scaleY);
 
-    // Static Markers (Using a lighter, scaled hollow square)
+    // Static Markers
     markersToDraw.forEach(m => {
-        const centerX = m.x * scaleX;
-        const centerY = opMapCanvas.height - (m.y * scaleY); 
+        const { x: centerX, y: centerY } = worldToCanvas(
+            m.x, m.y, bounds, scaleX, scaleY, opMapCanvas.height
+        );
         
-        // Gunakan 80% dari ukuran marker sebenarnya untuk representasi visual yang lebih kecil di Operation Map
-        const MARKER_DRAW_SIZE = markerSize * scaleX * 0.8; 
+        const MARKER_DRAW_SIZE = markerSize * scaleX * 0.8;
         const AXIS_LENGTH = MARKER_DRAW_SIZE / 2 + 5;
         
-        // Draw Marker Body (Lighter Hollow Square)
-        opCtx.strokeStyle = "#95a5a6"; // Gray outline
+        // Draw Marker (lighter style)
+        opCtx.strokeStyle = "#95a5a6";
         opCtx.lineWidth = 1;
         opCtx.strokeRect(centerX - MARKER_DRAW_SIZE/2, centerY - MARKER_DRAW_SIZE/2, MARKER_DRAW_SIZE, MARKER_DRAW_SIZE);
         
         opCtx.fillStyle = "#333";
-        // DRAW TEXT LABEL (Hanya ID yang selalu muncul)
+        opCtx.font = "11px Arial";
         opCtx.fillText(`ID ${m.id}`, centerX + AXIS_LENGTH + 2, centerY - 5);
     });
 
-    // --- Hypothesis Visualization (Small Cross/X remains) ---
+    // Hypothesis Visualization
     const HYPOTHESIS_SIZE = 5;
     const HYPOTHESIS_COLOR = 'rgba(0, 150, 255, 0.5)';
     const HYPOTHESIS_ORIENTATION_LENGTH = 10;
     
     agvPoseHypotheses.forEach(pose => {
-        const hyp_x_cm = pose.x;
-        const hyp_y_cm = pose.y;
-
-        const centerX = hyp_x_cm * scaleX; 
-        const centerY = opMapCanvas.height - (hyp_y_cm * scaleY); 
+        const { x: centerX, y: centerY } = worldToCanvas(
+            pose.x, pose.y, bounds, scaleX, scaleY, opMapCanvas.height
+        );
         
-        if (isNaN(centerX) || isNaN(centerY) || centerX < -50 || centerX > opMapCanvas.width + 50 || centerY < -50 || centerY > opMapCanvas.height + 50) {
-            console.warn(`WARNING: Hypothesis skipped (invalid coordinates): X=${hyp_x_cm.toFixed(2)}, Y=${hyp_y_cm.toFixed(2)}`);
-            return; 
-        }
+        if (isNaN(centerX) || isNaN(centerY)) return;
 
-        // Draw Hypothesis Body (Small Cross/X)
+        // Draw cross
         opCtx.strokeStyle = HYPOTHESIS_COLOR;
         opCtx.lineWidth = 1;
-        
         opCtx.beginPath();
         opCtx.moveTo(centerX - 3, centerY - 3);
         opCtx.lineTo(centerX + 3, centerY + 3);
@@ -267,7 +236,7 @@ function renderOperationMap() {
         opCtx.lineTo(centerX - 3, centerY + 3);
         opCtx.stroke();
         
-        // Draw Hypothesis Orientation (Short Line)
+        // Draw orientation
         opCtx.save();
         opCtx.translate(centerX, centerY);
         opCtx.rotate(-pose.yaw * Math.PI / 180); 
@@ -278,27 +247,24 @@ function renderOperationMap() {
         opCtx.restore();
     });
 
-    // --- AGV Position (Final Pose - Arrowhead) ---
+    // AGV Position (Arrowhead)
     const AGV_BODY_LENGTH = 25; 
     const AGV_BODY_WIDTH = 15;
     
-    const agv_x_cm = agvPose.x; 
-    const agv_y_cm = agvPose.y; 
+    const { x: agvCanvasX, y: agvCanvasY } = worldToCanvas(
+        agvPose.x, agvPose.y, bounds, scaleX, scaleY, opMapCanvas.height
+    );
 
-    const centerX = agv_x_cm * scaleX; 
-    const centerY = opMapCanvas.height - (agv_y_cm * scaleY); 
-
-    // Draw AGV body (Arrowhead/Triangle)
     opCtx.save();
-    opCtx.translate(centerX, centerY);
+    opCtx.translate(agvCanvasX, agvCanvasY);
     opCtx.rotate(-agvPose.yaw * Math.PI / 180); 
 
-    opCtx.fillStyle = "#2ecc71"; // Primary green
+    opCtx.fillStyle = "#2ecc71";
     opCtx.strokeStyle = "#27ae60";
     opCtx.lineWidth = 1;
     
     opCtx.beginPath();
-    opCtx.moveTo(AGV_BODY_LENGTH, 0); // Point
+    opCtx.moveTo(AGV_BODY_LENGTH, 0);
     opCtx.lineTo(-AGV_BODY_LENGTH/3, -AGV_BODY_WIDTH / 2);
     opCtx.lineTo(-AGV_BODY_LENGTH/3, AGV_BODY_WIDTH / 2);
     opCtx.closePath();
@@ -308,7 +274,8 @@ function renderOperationMap() {
     opCtx.restore();
     
     opCtx.fillStyle = "#333";
-    opCtx.fillText(`AGV`, centerX + 12, centerY);
+    opCtx.font = "12px Arial";
+    opCtx.fillText(`AGV`, agvCanvasX + 12, agvCanvasY);
 }
 
 // Helper to calculate Euclidean distance (for collision check)
@@ -426,8 +393,6 @@ function setupCanvasHover(canvas, renderFunction, mapType) {
 let mapDataForSave = []; 
 
 function updateMarkerTable() {
-    // NOTE: Use the global markers array. If you are using 'window.markers' elsewhere, 
-    // you must ensure consistency. 'markers' globally defined at the top is safer.
     const markersToRender = window.markers; 
 
     const tbody = document.querySelector("#markerTable tbody");
@@ -436,19 +401,16 @@ function updateMarkerTable() {
         return;
     }
     
-    // Check if the array is empty before continuing
     console.log(`--- DEBUG: Rendering Table ---`);
     console.log(`Markers array size for table rendering: ${markersToRender.length}`);
 
     tbody.innerHTML = "";
     
-    // Ensure the markers array is not empty
     if (markersToRender.length === 0) {
         return; 
     }
 
     markersToRender.forEach((m, idx) => {
-        // --- CRITICAL CHECK: Ensure m.id, m.x, m.y, and m.yaw exist and are numbers. ---
         if (m === undefined || isNaN(m.id) || isNaN(m.x) || isNaN(m.y) || isNaN(m.yaw)) {
             console.error(`Skipping invalid marker data at index ${idx}:`, m);
             return; 
@@ -456,11 +418,39 @@ function updateMarkerTable() {
 
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td><input type="number" value="${m.id}" class="marker-id-input" onchange="updateMarker(${idx},'id',this.value)"></td>
-            <td><input type="number" value="${m.x.toFixed(1)}" step="1" onchange="updateMarker(${idx},'x',this.value)"></td>
-            <td><input type="number" value="${m.y.toFixed(1)}" step="1" onchange="updateMarker(${idx},'y',this.value)"></td>
-            <td><input type="number" value="${m.yaw.toFixed(1)}" step="1" onchange="updateMarker(${idx},'yaw',this.value)"></td>
-            <td><button onclick="deleteMarker(${idx})">Delete</button></td>
+            <td>
+                <input type="number" value="${m.id}" class="marker-id-input" 
+                       onchange="updateMarker(${idx},'id',this.value)" 
+                       style="width: 60px; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 6px; text-align: center;">
+            </td>
+            <td class="coordinates-cell">
+                <div class="coordinate-inputs">
+                    <div class="coordinate-input-group">
+                        <span class="coordinate-label">X:</span>
+                        <input type="number" value="${m.x.toFixed(1)}" step="1" 
+                               onchange="updateMarker(${idx},'x',this.value)" 
+                               class="coordinate-input">
+                    </div>
+                    <div class="coordinate-input-group">
+                        <span class="coordinate-label">Y:</span>
+                        <input type="number" value="${m.y.toFixed(1)}" step="1" 
+                               onchange="updateMarker(${idx},'y',this.value)" 
+                               class="coordinate-input">
+                    </div>
+                    <div class="coordinate-input-group">
+                        <span class="coordinate-label">Yaw:</span>
+                        <input type="number" value="${m.yaw.toFixed(1)}" step="1" 
+                               onchange="updateMarker(${idx},'yaw',this.value)" 
+                               class="coordinate-input">
+                    </div>
+                </div>
+            </td>
+            <td>
+                <button onclick="deleteMarker(${idx})" 
+                        style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                    Delete
+                </button>
+            </td>
         `; 
         tbody.appendChild(row);
     });
@@ -958,18 +948,10 @@ window.onload = function() {
         renderMap();
         setupCanvasHover(mapCanvas, renderMap, 'setup'); // Setup hover for Setup Map
         
-        // --- NEW LISTENERS FOR CONFIGURATION CHANGES ---
-        const inputsToMonitor = ["xLength", "yLength", "markerSize"];
-        inputsToMonitor.forEach(id => {
-            const input = document.getElementById(id);
-            if (input) {
-                // Use 'input' event for immediate visual feedback when typing/dragging number controls
-                input.addEventListener("input", renderMap);
-                // Also add 'change' event in case 'input' doesn't fire immediately
-                input.addEventListener("change", renderMap); 
-            }
-        });
-        // --- END NEW LISTENERS ---
+        const markerSizeInput = document.getElementById("markerSize");
+        if (markerSizeInput) {
+            markerSizeInput.addEventListener("input", renderMap);
+        }
     }
     if (opMapCanvas) {
         opMapCanvas.width = width * PIXEL_PER_CM;

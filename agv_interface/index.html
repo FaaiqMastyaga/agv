@@ -11,6 +11,9 @@
   <script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.0.0/lib/eventemitter2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ros3d@1.0.1/build/ros3d.min.js"></script>
+  
+  <!-- Load toast notifications first -->
+  <script src="js/toast-notifications.js"></script>
 </head>
 <body>
   <!-- Tooltip -->
@@ -37,176 +40,163 @@
   <main class="main-container">
     <!-- Setup Tab -->
     <section id="setup" class="tab-pane active">
-      <!-- Left Panel -->
-      <div class="scrollable">
-        <!-- Map Management -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">💾</div>
-            <h2 class="card-title">Map Management</h2>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Select Map</label>
-            <select id="load_map_name" class="form-select">
-              <option value="" disabled selected>Loading maps...</option>
-            </select>
-          </div>
-
-          <button onclick="loadMap()" class="btn btn-primary btn-block">📂 Load Map</button>
-          
-          <div class="btn-group">
-            <button id="saveMapBtn" class="btn btn-primary">💾 Save</button>
-            <button onclick="deleteMap()" class="btn btn-danger">🗑️ Delete</button>
-          </div>
-          
-          <button onclick="populateMapList()" class="btn btn-secondary btn-block" style="margin-top: 0.75rem;">🔄 Refresh List</button>
+      <!-- Left Panel with Internal Tabs -->
+      <div class="left-panel-wrapper">
+        <!-- Internal Tab Navigation -->
+        <div class="internal-tabs">
+          <button class="internal-tab-btn active" data-tab="config-tab">⚙️ Configuration</button>
+          <button class="internal-tab-btn" data-tab="markers-tab">📍 Markers</button>
         </div>
 
-        <!-- Map Configuration -->
-        <div class="card" style="margin-top: 1.5rem;">
-          <div class="card-header">
-            <div class="card-icon">⚙️</div>
-            <h2 class="card-title">Map Configuration</h2>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Map Name</label>
-            <input id="mapName" class="form-input" type="text" placeholder="e.g., ruang_lab" value="ruang_lab">
+        <!-- Internal Tab Content -->
+        <div class="internal-tab-content scrollable">
+          <!-- Configuration Tab -->
+          <div id="config-tab" class="internal-pane active">
+            <!-- Map Management -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-icon">💾</div>
+                <h2 class="card-title">Map Management</h2>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Select Map</label>
+                <select id="load_map_name" class="form-select">
+                  <option value="" disabled selected>Loading maps...</option>
+                </select>
+              </div>
+
+              <button onclick="loadMap()" class="btn btn-primary btn-block">📂 Load Map</button>
+              
+              <div class="btn-group">
+                <button id="saveMapBtn" class="btn btn-primary">💾 Save</button>
+                <button onclick="deleteMap()" class="btn btn-danger">🗑️ Delete</button>
+              </div>
+              
+              <button onclick="populateMapList()" class="btn btn-secondary btn-block" style="margin-top: 0.75rem;">🔄 Refresh List</button>
+            </div>
+
+            <!-- Map Configuration -->
+            <div class="card" style="margin-top: 1.5rem;">
+              <div class="card-header">
+                <div class="card-icon">⚙️</div>
+                <h2 class="card-title">Map Configuration</h2>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Map Name</label>
+                <input id="mapName" class="form-input" type="text" placeholder="e.g., ruang_lab" value="ruang_lab">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Marker Size (cm)</label>
+                <input id="markerSize" class="form-input" type="number" value="5">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Marker Dictionary</label>
+                <select id="markerDict" class="form-select">
+                  <option value="DICT_4X4_50">DICT_4X4_50</option>
+                  <option value="DICT_4X4_100" selected>DICT_4X4_100</option>
+                  <option value="DICT_4X4_250">DICT_4X4_250</option>
+                  <option value="DICT_4X4_1000">DICT_4X4_1000</option>
+                  <option value="DICT_5X5_50">DICT_5X5_50</option>
+                  <option value="DICT_5X5_100">DICT_5X5_100</option>
+                  <option value="DICT_5X5_250">DICT_5X5_250</option>
+                  <option value="DICT_5X5_1000">DICT_5X5_1000</option>
+                  <option value="DICT_6X6_50">DICT_6X6_50</option>
+                  <option value="DICT_6X6_100">DICT_6X6_100</option>
+                  <option value="DICT_6X6_250">DICT_6X6_250</option>
+                  <option value="DICT_6X6_1000">DICT_6X6_1000</option>
+                  <option value="DICT_7X7_50">DICT_7X7_50</option>
+                  <option value="DICT_7X7_100">DICT_7X7_100</option>
+                  <option value="DICT_7X7_250">DICT_7X7_250</option>
+                  <option value="DICT_7X7_1000">DICT_7X7_1000</option>
+                  <option value="DICT_ARUCO_ORIGINAL">DICT_ARUCO_ORIGINAL</option>
+                </select>
+              </div>
+
+              <!-- Hidden fields for compatibility -->
+              <input id="xLength" type="hidden" value="600">
+              <input id="yLength" type="hidden" value="600">
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Marker Size (cm)</label>
-            <input id="markerSize" class="form-input" type="number" value="5">
+          <!-- Markers Tab -->
+          <div id="markers-tab" class="internal-pane">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-icon">📍</div>
+                <h2 class="card-title">Marker Positions</h2>
+              </div>
+              
+              <div class="table-container-vertical">
+                <table id="markerTable">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Coordinates</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              
+              <button id="addMarkerBtn" class="btn btn-primary btn-block">+ Add Marker</button>
+            </div>
           </div>
-
-          <div class="form-group">
-            <label class="form-label">Marker Dictionary</label>
-            <select id="markerDict" class="form-select">
-              <option value="DICT_4X4_50">DICT_4X4_50</option>
-              <option value="DICT_4X4_100" selected>DICT_4X4_100</option>
-              <option value="DICT_4X4_250">DICT_4X4_250</option>
-              <option value="DICT_4X4_1000">DICT_4X4_1000</option>
-              <option value="DICT_5X5_50">DICT_5X5_50</option>
-              <option value="DICT_5X5_100">DICT_5X5_100</option>
-              <option value="DICT_5X5_250">DICT_5X5_250</option>
-              <option value="DICT_5X5_1000">DICT_5X5_1000</option>
-              <option value="DICT_6X6_50">DICT_6X6_50</option>
-              <option value="DICT_6X6_100">DICT_6X6_100</option>
-              <option value="DICT_6X6_250">DICT_6X6_250</option>
-              <option value="DICT_6X6_1000">DICT_6X6_1000</option>
-              <option value="DICT_7X7_50">DICT_7X7_50</option>
-              <option value="DICT_7X7_100">DICT_7X7_100</option>
-              <option value="DICT_7X7_250">DICT_7X7_250</option>
-              <option value="DICT_7X7_1000">DICT_7X7_1000</option>
-              <option value="DICT_ARUCO_ORIGINAL">DICT_ARUCO_ORIGINAL</option>
-            </select>
-          </div>
-
-          <!-- Hidden fields for compatibility -->
-          <input id="xLength" type="hidden" value="600">
-          <input id="yLength" type="hidden" value="600">
         </div>
       </div>
 
-      <!-- Right Panel - Split into Map and Markers -->
-      <div class="setup-right-panel">
-        <div class="canvas-container">
-          <div class="canvas-header">
-            <h3 class="canvas-title">Map Visualization</h3>
-            <span class="canvas-badge">2D View</span>
-          </div>
-          <div class="canvas-wrapper" id="mapCanvasWrapper">
-            <canvas id="mapCanvas" width="800" height="600"></canvas>
-            <div class="canvas-controls">
-              <button class="canvas-control-btn" id="zoomInMap" title="Zoom In">+</button>
-              <button class="canvas-control-btn" id="zoomOutMap" title="Zoom Out">−</button>
-              <button class="canvas-control-btn" id="resetViewMap" title="Reset View">⟲</button>
-              <button class="canvas-control-btn" id="fitToScreenMap" title="Fit to Screen">⛶</button>
-            </div>
-            <div class="zoom-level" id="zoomLevelMap">100%</div>
-          </div>
-          <p class="canvas-hint">💡 Drag to pan • Use controls to zoom</p>
+      <!-- Right Panel - Map Visualization -->
+      <div class="canvas-container">
+        <div class="canvas-header">
+          <h3 class="canvas-title">Map Visualization</h3>
+          <span class="canvas-badge">2D View</span>
         </div>
-
-        <div class="card" style="margin-top: 1rem;">
-          <div class="card-header">
-            <div class="card-icon">📍</div>
-            <h2 class="card-title">Marker Positions</h2>
+        <div class="canvas-wrapper" id="mapCanvasWrapper">
+          <canvas id="mapCanvas" width="800" height="600"></canvas>
+          <div class="canvas-controls">
+            <button class="canvas-control-btn" id="zoomInMap" title="Zoom In">+</button>
+            <button class="canvas-control-btn" id="zoomOutMap" title="Zoom Out">−</button>
+            <button class="canvas-control-btn" id="resetViewMap" title="Reset View">⟲</button>
+            <button class="canvas-control-btn" id="fitToScreenMap" title="Fit to Screen">⛶</button>
           </div>
-          
-          <div class="table-container">
-            <table id="markerTable">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>X (cm)</th>
-                  <th>Y (cm)</th>
-                  <th>Yaw (°)</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          
-          <button id="addMarkerBtn" class="btn btn-primary btn-block">+ Add Marker</button>
+          <div class="zoom-level" id="zoomLevelMap">100%</div>
         </div>
+        <p class="canvas-hint">💡 Click to place markers • Drag to pan • Use controls to zoom</p>
       </div>
     </section>
 
     <!-- Operation Tab -->
     <section id="operation" class="tab-pane">
-      <!-- Left Panel -->
-      <div class="scrollable">
-        <!-- ROS Status -->
-        <div class="card">
+      <!-- Left Panel - Camera Feed -->
+      <div class="camera-panel">
+        <div class="card" style="height: 100%; display: flex; flex-direction: column;">
           <div class="card-header">
-            <div class="card-icon">🔌</div>
-            <h2 class="card-title">System Status</h2>
+            <div class="card-icon">📷</div>
+            <h2 class="card-title">Camera Feed</h2>
           </div>
-          <div id="rosStatus" class="status-badge status-disconnected">
-            <span class="status-dot"></span>
-            Disconnected
+          <div class="camera-feed-container">
+            <img id="cameraFeed" src="#" alt="AGV Camera Stream" />
           </div>
         </div>
-
-        <!-- AGV Position -->
-        <div class="card" style="margin-top: 1.5rem;">
-          <div class="card-header">
-            <div class="card-icon">🤖</div>
-            <h2 class="card-title">AGV Position</h2>
-          </div>
-          
-          <div class="info-grid">
-            <div class="info-card">
-              <div class="info-label">Position X</div>
-              <div class="info-value" id="posX">-</div>
-            </div>
-            <div class="info-card">
-              <div class="info-label">Position Y</div>
-              <div class="info-value" id="posY">-</div>
-            </div>
-            <div class="info-card">
-              <div class="info-label">Yaw</div>
-              <div class="info-value" id="posYaw">-</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Hidden sections for data storage -->
-        <div id="detected_poses" style="display: none;"></div>
-        <div id="aruco_data" style="display: none;"></div>
       </div>
 
-      <!-- Right Panel -->
-      <div class="operation-right-panel">
-        <div class="viz-card">
-          <div class="canvas-header">
-            <h3 class="canvas-title">Operation Map</h3>
-            <span class="canvas-badge">Live</span>
+      <!-- Right Panel - Operation Map -->
+      <div class="operation-map-panel">
+        <div class="card" style="height: 100%; display: flex; flex-direction: column; position: relative;">
+          <div class="card-header">
+            <div class="card-icon">🗺️</div>
+            <h2 class="card-title">Operation Map</h2>
+            <div id="rosStatus" class="status-badge status-disconnected" style="margin-left: auto;">
+              <span class="status-dot"></span>
+              Disconnected
+            </div>
           </div>
-          <div class="canvas-wrapper" id="opMapCanvasWrapper">
+          
+          <div class="canvas-wrapper" id="opMapCanvasWrapper" style="flex: 1;">
             <canvas id="opMapCanvas" width="800" height="600"></canvas>
             <div class="canvas-controls">
               <button class="canvas-control-btn" id="zoomInOp" title="Zoom In">+</button>
@@ -215,25 +205,57 @@
               <button class="canvas-control-btn" id="fitToScreenOp" title="Fit to Screen">⛶</button>
             </div>
             <div class="zoom-level" id="zoomLevelOp">100%</div>
+            
+            <!-- AGV Position Legend Box -->
+            <div class="agv-position-box">
+              <div class="agv-position-header">
+                <span class="agv-position-icon">🤖</span>
+                <span class="agv-position-title">AGV Position</span>
+              </div>
+              <div class="agv-position-data">
+                <div class="agv-position-item">
+                  <span class="agv-position-label">X:</span>
+                  <span class="agv-position-value" id="posX">-</span>
+                </div>
+                <div class="agv-position-item">
+                  <span class="agv-position-label">Y:</span>
+                  <span class="agv-position-value" id="posY">-</span>
+                </div>
+                <div class="agv-position-item">
+                  <span class="agv-position-label">Yaw:</span>
+                  <span class="agv-position-value" id="posYaw">-</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div class="viz-card">
-          <div class="canvas-header">
-            <h3 class="canvas-title">Camera Feed</h3>
-            <span class="canvas-badge">Live</span>
-          </div>
-          <div class="camera-wrapper">
-            <img id="cameraFeed" src="#" alt="AGV Camera Stream" />
-          </div>
-        </div>
+
+        <!-- Hidden sections for data storage -->
+        <div id="detected_poses" style="display: none;"></div>
+        <div id="aruco_data" style="display: none;"></div>
       </div>
     </section>
   </main>
 
-  <script src="js/toast-notifications.js"></script>
   <script src="js/auto-map-sizing.js"></script>
   <script src="js/canvas-controls.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    // Internal tab switching for Setup page
+    document.addEventListener('DOMContentLoaded', () => {
+      const internalTabs = document.querySelectorAll('.internal-tab-btn');
+      const internalPanes = document.querySelectorAll('.internal-pane');
+      
+      internalTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+          internalTabs.forEach(b => b.classList.remove('active'));
+          internalPanes.forEach(p => p.classList.remove('active'));
+          
+          btn.classList.add('active');
+          document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+      });
+    });
+  </script>
 </body>
 </html>
