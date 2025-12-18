@@ -13,14 +13,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='map_database',
-            executable='map_saver_node',
-            name='map_saver',
-            output='screen',
-        ),
-        Node(
-            package='map_database',
-            executable='map_loader_node',
-            name='map_loader',
+            executable='map_handler_node',
+            name='map_handler',
             output='screen',
         ),
     ])

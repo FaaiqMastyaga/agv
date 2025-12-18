@@ -27,8 +27,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'map_saver_node = map_database.map_saver:main',
-            'map_loader_node = map_database.map_loader:main',
+            'map_handler_node = map_database.map_handler:main',
         ],
     },
 )

@@ -18,6 +18,7 @@ set(srv_files
   srv/GetMap.srv
   srv/GetMapName.srv
   srv/SaveMap.srv
+  srv/RemoveMap.srv
 )
 
 # Generate the service interfaces
