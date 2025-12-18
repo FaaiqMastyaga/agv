@@ -716,8 +716,8 @@ function deleteMap() {
 
     const deleteMapClient = new ROSLIB.Service({
         ros: ros,
-        name: '/map_database/delete_map',
-        serviceType: 'map_database_interfaces/srv/DeleteMap' 
+        name: '/map_database/remove_map',
+        serviceType: 'map_database_interfaces/srv/RemoveMap' 
     });
 
     const request = new ROSLIB.ServiceRequest({
